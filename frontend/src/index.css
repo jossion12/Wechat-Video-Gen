@@ -113,6 +113,10 @@ body {
   margin-bottom: 10px;
 }
 
+.form-row--top {
+  align-items: flex-start;
+}
+
 .form-row:last-child {
   margin-bottom: 0;
 }
@@ -325,10 +329,35 @@ textarea {
   overflow: hidden;
   border: 1px solid var(--border);
   background: #f0f0f0;
+  cursor: pointer;
+  outline-offset: 2px;
+}
+
+.avatar-thumb:hover {
+  outline: 2px solid var(--wechat-green);
+}
+
+.avatar-thumb:focus-visible {
+  outline: 2px solid var(--wechat-green);
+}
+
+.avatar-thumb--busy {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.avatar-thumb--busy:hover {
+  outline: none;
 }
 
 .avatar-picker--image .avatar-thumb {
   width: 64px;
+  height: 64px;
+  border-radius: 8px;
+}
+
+.avatar-picker--background .avatar-thumb {
+  width: 96px;
   height: 64px;
   border-radius: 8px;
 }
@@ -379,6 +408,22 @@ textarea {
   width: 64px;
   height: 64px;
   border-radius: 8px;
+}
+
+.avatar-picker--background .avatar-placeholder {
+  width: 96px;
+  height: 64px;
+  border-radius: 8px;
+}
+
+.background-image-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.background-image-field .hint {
+  margin: 2px 0 0;
 }
 
 .avatar-placeholder--busy {

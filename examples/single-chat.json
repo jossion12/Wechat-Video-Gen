@@ -1,0 +1,32 @@
+{
+  "mode": "single",
+  "title": "潘文",
+  "subtitle": "云熙数码",
+  "background": "#ededed",
+  "background_image_url": null,
+  "status_bar": {
+    "time": "00:00",
+    "battery_level": 61,
+    "network_speed": "3.5 K/s",
+    "signal_type": "5A",
+    "dual_sim": true,
+    "show_bluetooth": true,
+    "show_alarm": true,
+    "show_nfc": true,
+    "app_icons": ["bilibili"]
+  },
+  "participants": [
+    { "id": "me", "name": "我", "avatar_url": "/uploads/me.jpg", "label": null },
+    { "id": "pan", "name": "潘文", "avatar_url": "/uploads/pan.jpg", "label": null }
+  ],
+  "messages": [
+    { "sender_id": "pan", "kind": "text", "text": "内屏还是外屏", "delay_ms": 1500 },
+    { "sender_id": "pan", "kind": "text", "text": "有免费贴膜", "delay_ms": 1500 },
+    { "sender_id": "pan", "kind": "text", "text": "内屏免费贴膜要到售后去换", "delay_ms": 1800 },
+    { "sender_id": "me", "kind": "text", "text": "内屏，有些小横路了", "delay_ms": 1500 },
+    { "sender_id": "pan", "kind": "text", "text": "到售后换免费", "delay_ms": 1500 },
+    { "sender_id": "me", "kind": "text", "text": "我看只有每个月第一周的周五到周天吗？", "delay_ms": 2000 },
+    { "sender_id": "pan", "kind": "text", "text": "对", "delay_ms": 1200 },
+    { "sender_id": "me", "kind": "text", "text": "好的", "delay_ms": 1200 }
+  ]
+}

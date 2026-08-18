@@ -1,26 +1,47 @@
 export type Mode = 'single' | 'group';
-export type MessageKind = 'text' | 'image' | 'sys';
+export type MessageKind = 'text' | 'image' | 'sys' | 'timestamp' | 'video' | 'emoji';
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
+
+export interface StatusBar {
+  time: string; // default '12:34'
+  battery_level: number; // 0-100, default 100
+  network_speed: string | null; // e.g. '3.5 K/s', '300 B/s'
+  signal_type: string | null; // e.g. '5A', '5G', '4G'
+  dual_sim: boolean;
+  show_bluetooth: boolean;
+  show_alarm: boolean;
+  show_nfc: boolean;
+  app_icons: string[]; // short names/initials for left-side app icons
+}
 
 export interface Participant {
   id: string; // unique within config, e.g. 'me', 'alice', 'bob'
   name: string; // display name, ≤16 chars
   avatar_url: string | null; // '/uploads/xxx.png' or null
+  label: string | null; // subtitle in single chat / enterprise tag in group chat
 }
 
 export interface Message {
   sender_id: string; // references Participant.id; '__system__' for sys
   kind: MessageKind;
   text: string | null;
-  image_url: string | null;
+  image_url: string | null; // for kind='image'
+  video_url: string | null; // for kind='video'
+  cover_url: string | null; // optional video cover
+  duration: string | null; // e.g. '0:10' for video
   delay_ms: number; // default 1500
 }
 
 export interface ChatConfig {
   mode: Mode; // default 'group'
   title: string; // default '群聊'
+  subtitle: string | null; // shown below title in single chat
   background: string; // default '#ededed'
+  background_image_url: string | null; // '/uploads/xxx.png' or null; 有值时优先于 background
   duration_ms: number | null; // null = auto
+  status_bar: StatusBar;
+  member_count: number | null; // group member count, e.g. 221
+  muted: boolean; // show mute bell in group header
   participants: Participant[]; // at least 2
   messages: Message[]; // at least 1, ≤30
 }

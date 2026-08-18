@@ -4,17 +4,17 @@
 
 ### E2E-1 · 群聊 5 条消息生成
 
-**前置**:浏览器打开 `http://localhost:8080`
+**前置**:浏览器打开 `http://localhost:8080`,页面为空配置(无 demo 数据)
 
 **步骤**:
 1. 上传 3 张头像(尺寸任意,≤ 2MB)
-2. 添加 3 个参与者:甄嬛 / 华妃 / 沈眉庄,各绑定头像
+2. 添加 3 个参与者:我 / 小美 / 阿强,各绑定头像
 3. 添加 5 条消息:
-   - 甄嬛发图片:`assets/plum.jpg` + 文案"倚梅园的梅花开了"
-   - 华妃发文本:"怪不得皇上昨夜又去了碎玉轩"
-   - 沈眉庄发文本:"娘娘息怒,群里说话还是留三分"
-   - 华妃发文本:"臣妾不敢"
-   - 系统消息:"余答应已被移出群聊"
+   - 小美发图片:`assets/plum.jpg` + 文案"周末去爬山吗"
+   - 阿强发文本:"可以,我周六有空"
+   - 小美发文本:"那就周六早上见"
+   - 我发文本:"好的,我来定集合地点"
+   - 系统消息:"小美已将群名改为「周末活动群」"
 4. 在右侧 iframe 中**实时看到**上述内容按时间顺序出现
 5. 点"生成视频"按钮
 6. 等待进度条到 100%
@@ -157,12 +157,12 @@ curl -F file=@avatar.png -F kind=avatar http://localhost:8000/api/upload
 # 3. 预览
 curl -X POST http://localhost:8000/api/preview-html \
   -H 'Content-Type: application/json' \
-  -d @sample-config.json | jq -r .html | head -50
+  -d @examples/minimal.json | jq -r .html | head -50
 
 # 4. 提交 render
 curl -X POST http://localhost:8000/api/render \
   -H 'Content-Type: application/json' \
-  -d @sample-config.json
+  -d @examples/minimal.json
 # → {"job_id":"..."}
 
 # 5. 查询
@@ -206,7 +206,7 @@ docker exec wechat-video-gen ffmpeg -version | head -1
 
 ## 6.7 验收清单(汇总)
 
-- [ ] 浏览器打开 `/`,看到表单 + 右侧 iframe 预览
+- [ ] 浏览器打开 `/`,看到表单 + 右侧预览(空配置时显示占位提示,无 demo 数据)
 - [ ] 上传头像、编辑消息,iframe 实时同步
 - [ ] 单聊模式"自己"消息在右侧
 - [ ] 群聊模式所有消息在左侧(默认)

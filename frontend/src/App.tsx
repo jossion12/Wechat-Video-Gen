@@ -12,21 +12,12 @@ const SYSTEM_ID = '__system__';
 function createDefaultConfig(): ChatConfig {
   return {
     mode: 'group',
-    title: '后宫风云复盘群 (3)',
+    title: '群聊',
     background: '#ededed',
+    background_image_url: null,
     duration_ms: null,
-    participants: [
-      { id: 'zhen', name: '甄嬛', avatar_url: null },
-      { id: 'hua', name: '华妃', avatar_url: null },
-      { id: 'shen', name: '沈眉庄', avatar_url: null },
-    ],
-    messages: [
-      { sender_id: 'zhen', kind: 'text', text: '倚梅园的梅花开了。', image_url: null, delay_ms: 1500 },
-      { sender_id: 'hua', kind: 'text', text: '怪不得皇上昨夜又去了碎玉轩。', image_url: null, delay_ms: 1800 },
-      { sender_id: 'shen', kind: 'text', text: '娘娘息怒，群里说话还是留三分。', image_url: null, delay_ms: 1500 },
-      { sender_id: 'hua', kind: 'text', text: '臣妾不敢。', image_url: null, delay_ms: 1500 },
-      { sender_id: SYSTEM_ID, kind: 'sys', text: '余答应已被移出群聊', image_url: null, delay_ms: 1500 },
-    ],
+    participants: [],
+    messages: [],
   };
 }
 
@@ -56,7 +47,12 @@ export default function App() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const updateHeader = useCallback(
-    (patch: { mode?: ChatConfig['mode']; title?: string; background?: string }) => {
+    (patch: {
+      mode?: ChatConfig['mode'];
+      title?: string;
+      background?: string;
+      background_image_url?: string | null;
+    }) => {
       setConfig((prev) => ({ ...prev, ...patch }));
     },
     [],
@@ -107,6 +103,7 @@ export default function App() {
             mode={config.mode}
             title={config.title}
             background={config.background}
+            backgroundImage={config.background_image_url}
             onChange={updateHeader}
           />
           <ParticipantList

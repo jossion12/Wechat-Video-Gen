@@ -127,7 +127,7 @@ Playwright Chromium 浏览器在第一次运行时自动下载。
    # 提交 render
    curl -X POST http://localhost:8000/api/render \
      -H 'Content-Type: application/json' \
-     -d @examples/sample.json
+     -d @examples/minimal.json
    # → {"job_id": "01HX..."}
    
    # 监听 SSE

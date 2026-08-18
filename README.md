@@ -73,7 +73,7 @@ cd backend
 curl http://localhost:8000/health
 
 curl -X POST http://localhost:8000/api/preview-html \
-  -H 'Content-Type: application/json' -d @examples/sample.json
+  -H 'Content-Type: application/json' -d @examples/minimal.json
 
 curl -X POST http://localhost:8000/api/render \
   -H 'Content-Type: application/json' -d @examples/minimal.json

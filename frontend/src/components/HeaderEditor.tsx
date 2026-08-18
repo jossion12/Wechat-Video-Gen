@@ -1,14 +1,27 @@
 import type { Mode } from '../types';
+import { AvatarPicker } from './common/AvatarPicker';
 
 interface HeaderEditorProps {
   mode: Mode;
   title: string;
   background: string;
-  onChange: (patch: { mode?: Mode; title?: string; background?: string }) => void;
+  backgroundImage: string | null;
+  onChange: (patch: {
+    mode?: Mode;
+    title?: string;
+    background?: string;
+    background_image_url?: string | null;
+  }) => void;
 }
 
-/** 视频头部设置：聊天模式、标题、背景颜色。 */
-export function HeaderEditor({ mode, title, background, onChange }: HeaderEditorProps) {
+/** 视频头部设置：聊天模式、标题、背景颜色与背景图片。 */
+export function HeaderEditor({
+  mode,
+  title,
+  background,
+  backgroundImage,
+  onChange,
+}: HeaderEditorProps) {
   return (
     <section className="card">
       <h2 className="card-title">视频头部</h2>
@@ -46,7 +59,7 @@ export function HeaderEditor({ mode, title, background, onChange }: HeaderEditor
           type="text"
           maxLength={30}
           value={title}
-          placeholder="例如：后宫风云复盘群 (3)"
+          placeholder="例如：家人群 (3)"
           onChange={(e) => onChange({ title: e.target.value })}
         />
       </div>
@@ -62,6 +75,18 @@ export function HeaderEditor({ mode, title, background, onChange }: HeaderEditor
             onChange={(e) => onChange({ background: e.target.value })}
           />
           <span className="color-value">{background}</span>
+        </div>
+      </div>
+      <div className="form-row form-row--top">
+        <span className="form-label">背景图片</span>
+        <div className="background-image-field">
+          <AvatarPicker
+            kind="background"
+            value={backgroundImage}
+            onChange={(url) => onChange({ background_image_url: url })}
+            alt="聊天背景图"
+          />
+          <span className="hint">可选，上传后覆盖背景颜色，整页平铺显示</span>
         </div>
       </div>
     </section>

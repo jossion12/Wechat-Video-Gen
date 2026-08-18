@@ -4,11 +4,11 @@ import { uploadFile } from '../../api';
 interface AvatarPickerProps {
   value: string | null;
   onChange: (url: string | null) => void;
-  kind?: 'avatar' | 'image';
+  kind?: 'avatar' | 'image' | 'background';
   alt?: string;
 }
 
-/** 图片选择器：上传 → 缩略图预览 → 可移除。头像与消息图片共用。 */
+/** 图片选择器：上传 → 缩略图预览 → 点击可更换/移除。头像、消息图片与背景图共用。 */
 export function AvatarPicker({
   value,
   onChange,
@@ -36,16 +36,35 @@ export function AvatarPicker({
     }
   };
 
+  const openPicker = () => {
+    if (!uploading) inputRef.current?.click();
+  };
+
   return (
     <div className={`avatar-picker avatar-picker--${kind}`}>
       {value ? (
-        <div className="avatar-thumb">
+        <div
+          className={`avatar-thumb${uploading ? ' avatar-thumb--busy' : ''}`}
+          role="button"
+          tabIndex={0}
+          title={uploading ? '上传中…' : '点击更换图片'}
+          onClick={openPicker}
+          onKeyDown={(e) => {
+            if (!uploading && (e.key === 'Enter' || e.key === ' ')) {
+              e.preventDefault();
+              openPicker();
+            }
+          }}
+        >
           <img src={value} alt={alt} />
           <button
             type="button"
             className="avatar-remove"
             title="移除图片"
-            onClick={() => onChange(null)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(null);
+            }}
           >
             ×
           </button>
@@ -55,9 +74,9 @@ export function AvatarPicker({
           type="button"
           className={`avatar-placeholder${uploading ? ' avatar-placeholder--busy' : ''}`}
           disabled={uploading}
-          onClick={() => inputRef.current?.click()}
+          onClick={openPicker}
         >
-          {uploading ? '上传中…' : kind === 'avatar' ? '上传头像' : '上传图片'}
+          {uploading ? '上传中…' : kind === 'avatar' ? '上传头像' : kind === 'background' ? '上传背景' : '上传图片'}
         </button>
       )}
       <input

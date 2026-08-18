@@ -27,6 +27,7 @@ def build_participants(config: ChatConfig) -> list[dict]:
             "id": p.id,
             "name": p.name,
             "avatar_url": p.avatar_url,
+            "label": p.label,
             "css_class": p.id,
         }
         for p in config.participants
@@ -44,9 +45,10 @@ def _is_self(config: ChatConfig, sender_id: str) -> bool:
 
 
 def build_messages(config: ChatConfig) -> list[dict]:
-    """把消息列表展平成模板结构,加上 css_class / is_self / flash。"""
+    """把消息列表展平成模板结构,加上 css_class / is_self / flash / show_avatar。"""
     by_id = {p.id: p for p in config.participants}
     out: list[dict] = []
+    prev_chat_sender: str | None = None
     for i, m in enumerate(config.messages, start=1):
         if m.kind == "sys":
             out.append(
@@ -56,43 +58,96 @@ def build_messages(config: ChatConfig) -> list[dict]:
                     "sender_id": m.sender_id,
                     "sender_name": "",
                     "sender_avatar": None,
+                    "label": None,
                     "text": m.text,
                     "image_url": None,
+                    "video_url": None,
+                    "cover_url": None,
+                    "duration": None,
                     "css_class": "__system__",
                     "is_self": False,
                     "flash": "移出" in (m.text or ""),
+                    "show_avatar": False,
+                    "show_name": False,
                 }
             )
-        else:
-            sender = by_id[m.sender_id]
-            is_self = _is_self(config, m.sender_id)
+            prev_chat_sender = None
+            continue
+
+        if m.kind == "timestamp":
             out.append(
                 {
                     "dom_id": f"m{i}",
-                    "kind": m.kind,
+                    "kind": "timestamp",
                     "sender_id": m.sender_id,
-                    "sender_name": sender.name,
-                    "sender_avatar": sender.avatar_url,
+                    "sender_name": "",
+                    "sender_avatar": None,
+                    "label": None,
                     "text": m.text,
-                    "image_url": m.image_url,
-                    "css_class": "self" if is_self else "",
-                    "is_self": is_self,
+                    "image_url": None,
+                    "video_url": None,
+                    "cover_url": None,
+                    "duration": None,
+                    "css_class": "__timestamp__",
+                    "is_self": False,
                     "flash": False,
+                    "show_avatar": False,
+                    "show_name": False,
                 }
             )
+            prev_chat_sender = None
+            continue
+
+        sender = by_id[m.sender_id]
+        is_self = _is_self(config, m.sender_id)
+        show_sender = m.sender_id != prev_chat_sender
+        prev_chat_sender = m.sender_id
+        out.append(
+            {
+                "dom_id": f"m{i}",
+                "kind": m.kind,
+                "sender_id": m.sender_id,
+                "sender_name": sender.name,
+                "sender_avatar": sender.avatar_url,
+                "label": sender.label,
+                "text": m.text,
+                "image_url": m.image_url,
+                "video_url": m.video_url,
+                "cover_url": m.cover_url,
+                "duration": m.duration,
+                "css_class": "self" if is_self else "",
+                "is_self": is_self,
+                "flash": False,
+                "show_avatar": show_sender,
+                "show_name": show_sender and not is_self,
+            }
+        )
     return out
 
 
 def build_timeline(config: ChatConfig) -> list[dict]:
     """生成 TIMELINE 数组 — 见 docs/04-template.md §4.6。"""
-    timeline: list[dict] = [{"id": "t1", "at": 500, "type": "stamp"}]
-    t = 1200
-    for i, m in enumerate(config.messages, start=1):
+    # 如果用户第一条就是 timestamp,则用它的内容替换默认时间戳
+    first_msg = config.messages[0] if config.messages else None
+    if first_msg and first_msg.kind == "timestamp" and first_msg.text:
+        timeline: list[dict] = [{"id": "m1", "at": 500, "type": "timestamp"}]
+        start_idx = 1
+        t = 1200
+    else:
+        timeline = [{"id": "t1", "at": 500, "type": "stamp"}]
+        start_idx = 0
+        t = 1200
+
+    for i, m in enumerate(config.messages[start_idx:], start=start_idx + 1):
         timeline.append(
             {
                 "id": f"m{i}",
                 "at": t,
-                "type": "sys" if m.kind == "sys" else "msg",
+                "type": (
+                    "sys"
+                    if m.kind == "sys"
+                    else "timestamp" if m.kind == "timestamp" else "msg"
+                ),
                 "flash": m.kind == "sys" and "移出" in (m.text or ""),
             }
         )
@@ -112,8 +167,14 @@ def render_template(config: ChatConfig) -> str:
     tmpl = load_template()
     ctx = {
         "config": config,
+        "mode": config.mode,
         "title": config.title,
+        "subtitle": config.subtitle,
         "background": config.background,
+        "background_image_url": config.background_image_url,
+        "status_bar": config.status_bar,
+        "member_count": config.member_count,
+        "muted": config.muted,
         "participants": build_participants(config),
         "messages": build_messages(config),
         "timeline": build_timeline(config),

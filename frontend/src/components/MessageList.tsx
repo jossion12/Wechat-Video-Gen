@@ -36,7 +36,15 @@ export function MessageList({ participants, messages, onChange }: MessageListPro
 
   const addMessage = () => {
     if (messages.length >= MAX_MESSAGES) return;
-    const sender = participants[0]?.id ?? SYSTEM_ID;
+    if (participants.length === 0) {
+      // 还没有参与者时,先默认新增一条系统消息(不依赖 sender_id)
+      onChange([
+        ...messages,
+        { sender_id: SYSTEM_ID, kind: 'sys', text: '', image_url: null, delay_ms: 1500 },
+      ]);
+      return;
+    }
+    const sender = participants[0].id;
     onChange([
       ...messages,
       { sender_id: sender, kind: 'text', text: '', image_url: null, delay_ms: 1500 },

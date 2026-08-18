@@ -52,8 +52,8 @@ def health():
 
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...), kind: str = Form("image")):
-    if kind not in ("avatar", "image"):
-        raise HTTPException(400, "kind must be 'avatar' or 'image'")
+    if kind not in ("avatar", "image", "background"):
+        raise HTTPException(400, "kind must be 'avatar', 'image' or 'background'")
     ext = ALLOWED_MIME.get((file.content_type or "").lower())
     if ext is None:
         raise HTTPException(400, f"unsupported file type: {file.content_type}")

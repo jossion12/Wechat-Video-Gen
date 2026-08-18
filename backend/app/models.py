@@ -10,11 +10,51 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 SYSTEM_SENDER_ID = "__system__"
 
 MAX_PARTICIPANT_NAME = 16
+MAX_PARTICIPANT_LABEL = 24
 MAX_MESSAGE_TEXT = 500
 MAX_MESSAGES = 30
 MIN_PARTICIPANTS = 2
 FIRST_MESSAGE_MIN_DELAY_MS = 500
 MAX_DURATION_MS = 300_000  # 5 分钟上限,防止误配超长任务
+MAX_STATUS_BAR_APP_ICONS = 3
+
+
+class StatusBar(BaseModel):
+    """顶部状态栏。"""
+
+    time: str = "12:34"
+    battery_level: int = 100
+    network_speed: str | None = None  # e.g. "3.5 K/s", "300 B/s"
+    signal_type: str | None = None  # e.g. "5A", "5G", "4G"
+    dual_sim: bool = False
+    show_bluetooth: bool = False
+    show_alarm: bool = False
+    show_nfc: bool = False
+    app_icons: list[str] = Field(default_factory=list)
+
+    @field_validator("time")
+    @classmethod
+    def time_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("status_bar.time must not be empty")
+        return v
+
+    @field_validator("battery_level")
+    @classmethod
+    def battery_range(cls, v: int) -> int:
+        if v < 0 or v > 100:
+            raise ValueError("status_bar.battery_level must be 0-100")
+        return v
+
+    @field_validator("app_icons")
+    @classmethod
+    def app_icons_limit(cls, v: list[str]) -> list[str]:
+        if len(v) > MAX_STATUS_BAR_APP_ICONS:
+            raise ValueError(
+                f"status_bar.app_icons must be <= {MAX_STATUS_BAR_APP_ICONS}"
+            )
+        return v
 
 
 class Participant(BaseModel):
@@ -23,6 +63,7 @@ class Participant(BaseModel):
     id: str
     name: str = Field(max_length=MAX_PARTICIPANT_NAME)
     avatar_url: str | None = None
+    label: str | None = None  # 单聊副标题 / 群聊企业标签
 
     @field_validator("id")
     @classmethod
@@ -34,12 +75,15 @@ class Participant(BaseModel):
 
 
 class Message(BaseModel):
-    """一条聊天消息(text / image / sys)。"""
+    """一条聊天消息(text / image / sys / timestamp / video / emoji)。"""
 
     sender_id: str
-    kind: Literal["text", "image", "sys"]
+    kind: Literal["text", "image", "sys", "timestamp", "video", "emoji"]
     text: str | None = None
     image_url: str | None = None
+    video_url: str | None = None
+    cover_url: str | None = None
+    duration: str | None = None  # 视频/语音时长,如 "0:10"
     delay_ms: int = 1500
 
     @field_validator("text")
@@ -72,6 +116,15 @@ class Message(BaseModel):
             raise ValueError("text message must have non-empty text")
         if self.kind == "image" and not self.image_url:
             raise ValueError("image message must have image_url")
+        if self.kind == "video":
+            if not self.video_url:
+                raise ValueError("video message must have video_url")
+            if not self.duration:
+                raise ValueError("video message must have duration")
+        if self.kind == "emoji" and not self.text:
+            raise ValueError("emoji message must have non-empty text")
+        if self.kind == "timestamp" and not self.text:
+            raise ValueError("timestamp message must have non-empty text")
         if self.kind == "sys":
             if not self.text:
                 raise ValueError("sys message must have non-empty text")
@@ -85,8 +138,13 @@ class ChatConfig(BaseModel):
 
     mode: Literal["single", "group"] = "group"
     title: str = "群聊"
+    subtitle: str | None = None  # 单聊时显示在标题下方,如企业备注
     background: str = "#ededed"
+    background_image_url: str | None = None  # 整页背景图;有值时优先于 background 颜色
     duration_ms: int | None = None  # None = 自动算
+    status_bar: StatusBar = Field(default_factory=StatusBar)
+    member_count: int | None = None  # 群聊人数,如 221
+    muted: bool = False  # 群聊免打扰铃铛
     participants: list[Participant] = Field(min_length=MIN_PARTICIPANTS)
     messages: list[Message] = Field(min_length=1, max_length=MAX_MESSAGES)
 
@@ -124,7 +182,7 @@ class ChatConfig(BaseModel):
         if len(ids) != len(self.participants):
             raise ValueError("participant ids must be unique")
         for m in self.messages:
-            if m.kind != "sys" and m.sender_id not in ids:
+            if m.kind not in {"sys", "timestamp"} and m.sender_id not in ids:
                 raise ValueError(
                     f"sender_id {m.sender_id!r} does not match any participant id"
                 )

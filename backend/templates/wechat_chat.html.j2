@@ -10,6 +10,12 @@
   html, body {
     overflow: hidden;
     background: {{ background }};
+    {% if background_image_url %}
+    background-image: url('{{ background_image_url }}');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    {% endif %}
     font-family: -apple-system, "PingFang SC", "Hiragino Sans GB",
                  "Microsoft YaHei", "Noto Sans CJK SC", "Segoe UI", sans-serif;
   }
@@ -20,10 +26,37 @@
   .status-bar {
     height: 64px; flex: none;
     display: flex; align-items: center; justify-content: space-between;
-    padding: 0 44px; font-size: 30px; color: #111; font-weight: 600;
+    padding: 0 36px; font-size: 28px; color: #111; font-weight: 600;
   }
+  .s-left { display: flex; align-items: center; gap: 14px; }
   .s-right { display: flex; align-items: center; gap: 16px; }
+  .s-app-icons { display: flex; align-items: center; gap: 8px; }
+  .s-app-icon {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: #e0e0e0; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #666; overflow: hidden;
+  }
   .s-icons { display: flex; align-items: center; gap: 12px; }
+
+  .icon-nfc { width: 28px; height: 28px; border: 3px solid #111; border-radius: 6px;
+              display: flex; align-items: center; justify-content: center;
+              font-size: 14px; font-weight: 800; }
+  .icon-alarm { width: 26px; height: 26px; border: 3px solid #111; border-radius: 50%;
+                position: relative; }
+  .icon-alarm::before, .icon-alarm::after { content: ""; position: absolute;
+    background: #111; left: 50%; top: 50%; transform-origin: 0 0; }
+  .icon-alarm::before { width: 3px; height: 9px; transform: translate(-50%, -50%) rotate(0deg); }
+  .icon-alarm::after { width: 3px; height: 7px; transform: translate(-50%, -50%) rotate(135deg); }
+  .icon-bluetooth { width: 16px; height: 26px; position: relative; }
+  .icon-bluetooth::before { content: ""; position: absolute; left: 50%; top: 0;
+    width: 3px; height: 100%; background: #111; transform: translateX(-50%); }
+  .icon-bluetooth::after { content: ""; position: absolute; left: 50%; top: 50%;
+    width: 14px; height: 14px; border: 3px solid #111; transform: translate(-50%, -50%)
+      rotate(45deg); border-left: none; border-bottom: none; }
+
+  .s-network { font-size: 24px; font-weight: 600; color: #111; }
+  .s-signal-text { font-size: 24px; font-weight: 700; letter-spacing: -1px; }
+
   .icon-signal { width: 30px; height: 24px; position: relative; }
   .icon-signal::before { content: ""; position: absolute; left: 0; bottom: 2px;
     width: 8px; height: 8px; background: #111; border-radius: 2px;
@@ -33,11 +66,12 @@
   .icon-wifi::after { content: ""; position: absolute; left: 50%; bottom: -6px;
     width: 8px; height: 8px; background: #111; border-radius: 2px;
     transform: translateX(-50%); }
-  .icon-battery { width: 52px; height: 26px; border: 3px solid #111;
+  .icon-battery { display: flex; align-items: center; gap: 6px; font-size: 24px; font-weight: 600; }
+  .battery-shell { width: 52px; height: 26px; border: 3px solid #111;
     border-radius: 6px; position: relative; }
-  .icon-battery::before { content: ""; position: absolute; left: 4px; top: 4px;
-    width: 36px; height: 12px; background: #111; border-radius: 2px; }
-  .icon-battery::after { content: ""; position: absolute; right: -10px; top: 6px;
+  .battery-fill { position: absolute; left: 4px; top: 4px; height: 12px;
+    background: #111; border-radius: 2px; }
+  .battery-shell::after { content: ""; position: absolute; right: -10px; top: 6px;
     width: 6px; height: 12px; background: #111; border-radius: 0 3px 3px 0; }
 
   /* ---- 头部 ---- */
@@ -47,12 +81,24 @@
     padding: 0 36px;
     border-bottom: 1px solid rgba(0,0,0,0.06);
   }
+  .header.single { height: 140px; }
   .back { font-size: 72px; line-height: 1; color: #111; width: 96px; cursor: pointer; }
+  .title-wrap { flex: 1; display: flex; flex-direction: column; align-items: center;
+                justify-content: center; min-width: 0; }
+  .title-row { display: flex; align-items: center; gap: 12px; }
   .group-title { font-size: 44px; font-weight: 600; text-align: center;
-                 flex: 1; white-space: nowrap; overflow: hidden;
-                 text-overflow: ellipsis; }
-  .more { font-size: 52px; letter-spacing: 2px; color: #111; width: 96px;
-          text-align: right; line-height: 1; }
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .member-count { font-size: 30px; color: #666; font-weight: 500; }
+  .subtitle { font-size: 26px; color: #888; margin-top: 4px; }
+  .header-actions { display: flex; align-items: center; justify-content: flex-end;
+                    width: 96px; gap: 18px; }
+  .more { font-size: 52px; letter-spacing: 2px; color: #111; line-height: 1; }
+  .mute-bell { width: 36px; height: 36px; position: relative; }
+  .mute-bell::before { content: ""; position: absolute; left: 50%; top: 2px;
+    width: 22px; height: 22px; border: 3px solid #111; border-radius: 50% 50% 0 0;
+    border-bottom: none; transform: translateX(-50%); }
+  .mute-bell::after { content: ""; position: absolute; left: 50%; bottom: 2px;
+    width: 24px; height: 3px; background: #111; transform: translateX(-50%); }
 
   /* ---- 聊天区 ---- */
   .chat-wrap { flex: 1; overflow: hidden; position: relative; }
@@ -70,6 +116,8 @@
          opacity: 0; transform: translateY(30px) scale(0.96);
          transition: opacity .4s ease-out, transform .4s ease-out; }
   .msg.show { opacity: 1; transform: translateY(0) scale(1); }
+  .msg.no-avatar { padding-left: 128px; }
+  .msg.no-avatar.self { padding-left: 0; padding-right: 128px; }
 
   .msg .avatar { width: 104px; height: 104px; border-radius: 12px; flex: none;
                  background-size: cover; background-position: center;
@@ -84,7 +132,9 @@
 
   .msg .body { display: flex; flex-direction: column; align-items: flex-start;
                min-width: 0; justify-content: center; }
-  .sender { font-size: 28px; color: #999; margin-bottom: 10px; }
+  .sender-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .sender { font-size: 28px; color: #999; }
+  .sender-label { font-size: 24px; color: #999; }
 
   .bubble { position: relative; max-width: 100%; background: #ffffff;
             border-radius: 14px; padding: 24px 32px;
@@ -102,7 +152,13 @@
                       border-radius: 14px 14px 4px 14px; }
   .msg.self .bubble::before { left: auto; right: -12px;
     border-right: none; border-left: 14px solid #95ec69; }
-  .msg.self .sender { display: none; }
+  .msg.self .sender-row { display: none; }
+
+  /* 单独表情消息 */
+  .msg.emoji .bubble { background: transparent !important; padding: 0; box-shadow: none; }
+  .msg.emoji .bubble::before { display: none; }
+  .msg.emoji .emoji-text { font-size: 120px; line-height: 1; }
+  .msg.emoji.self { align-self: flex-end; }
 
   /* 图片消息 */
   .img-bubble { padding: 12px; }
@@ -112,6 +168,22 @@
                   object-fit: contain; }
   .img-caption { padding: 16px 8px 4px; font-size: 38px; line-height: 1.4;
                  color: #333; max-width: 480px; word-break: break-word; }
+
+  /* 视频消息 */
+  .video-bubble { padding: 0; overflow: hidden; border-radius: 14px;
+                  position: relative; max-width: 500px; }
+  .video-bubble .video-cover { display: block; width: 500px; max-height: 680px;
+                               object-fit: cover; border-radius: 14px; }
+  .video-play { position: absolute; left: 50%; top: 50%;
+                width: 96px; height: 96px; background: rgba(0,0,0,0.45);
+                border-radius: 50%; transform: translate(-50%, -50%);
+                display: flex; align-items: center; justify-content: center; }
+  .video-play::before { content: ""; width: 0; height: 0;
+    border-left: 34px solid #fff; border-top: 22px solid transparent;
+    border-bottom: 22px solid transparent; margin-left: 10px; }
+  .video-duration { position: absolute; right: 18px; bottom: 18px;
+                    background: rgba(0,0,0,0.35); color: #fff;
+                    font-size: 26px; padding: 4px 12px; border-radius: 8px; }
 
   /* 系统消息 */
   .sys-msg { align-self: center; background: rgba(0,0,0,0.08); color: #666;
@@ -142,6 +214,13 @@
   .ib-input { flex: 1; height: 96px; background: #fff; border-radius: 12px;
               border: 1px solid rgba(0,0,0,0.1); padding: 0 30px;
               font-size: 40px; color: #333; display: flex; align-items: center; }
+  .ib-emoji { width: 56px; height: 56px; flex: none; position: relative; }
+  .ib-emoji::before { content: ""; position: absolute; left: 50%; top: 50%;
+    width: 46px; height: 46px; border: 4px solid #666; border-radius: 50%;
+    transform: translate(-50%, -50%); }
+  .ib-emoji::after { content: ""; position: absolute; left: 50%; top: 58%;
+    width: 24px; height: 10px; border-radius: 0 0 12px 12px;
+    background: #666; transform: translate(-50%, -50%); }
   .ib-plus { width: 56px; height: 56px; flex: none; position: relative;
              border-radius: 10px; background: #fff;
              border: 1px solid rgba(0,0,0,0.15); }
@@ -151,45 +230,103 @@
                      border-radius: 3px; }
   .ib-plus::after { top: 14px; bottom: 14px; left: 25px; width: 6px;
                     border-radius: 3px; }
+
+  /* ---- 底部手势条 ---- */
+  .home-indicator { height: 44px; flex: none; background: #f7f7f7;
+                    display: flex; align-items: center; justify-content: center; }
+  .home-indicator::before { content: ""; width: 280px; height: 8px;
+    background: #b0b0b0; border-radius: 4px; }
 </style>
 </head>
 <body>
   <!-- 状态栏 -->
   <div class="status-bar">
-    <span class="s-time">12:34</span>
+    <span class="s-left">
+      <span class="s-time">{{ status_bar.time }}</span>
+      {% if status_bar.app_icons %}
+      <span class="s-app-icons">
+        {% for icon in status_bar.app_icons %}
+        <span class="s-app-icon">{{ icon[:1] }}</span>
+        {% endfor %}
+      </span>
+      {% endif %}
+    </span>
     <span class="s-right">
+      {% if status_bar.show_nfc %}<span class="icon-nfc">N</span>{% endif %}
+      {% if status_bar.show_alarm %}<span class="icon-alarm"></span>{% endif %}
+      {% if status_bar.show_bluetooth %}<span class="icon-bluetooth"></span>{% endif %}
+      {% if status_bar.network_speed %}<span class="s-network">{{ status_bar.network_speed }}</span>{% endif %}
+      {% if status_bar.signal_type %}<span class="s-signal-text">{{ status_bar.signal_type }}</span>{% endif %}
+      {% if status_bar.dual_sim %}<span class="s-signal-text">{{ status_bar.signal_type or '5G' }}</span>{% endif %}
       <span class="s-icons">
         <span class="icon-signal"></span>
         <span class="icon-wifi"></span>
       </span>
-      <span class="icon-battery"></span>
+      <span class="icon-battery">
+        <span class="battery-shell">
+          <span class="battery-fill" style="width: {{ status_bar.battery_level }}%;"></span>
+        </span>
+        {% if status_bar.battery_level is not none %}{{ status_bar.battery_level }}{% endif %}
+      </span>
     </span>
   </div>
 
   <!-- 头部 -->
-  <div class="header">
+  <div class="header {{ 'single' if mode == 'single' else 'group' }}">
     <div class="back">‹</div>
-    <div class="group-title">{{ title }}</div>
-    <div class="more">···</div>
+    <div class="title-wrap">
+      <div class="title-row">
+        <div class="group-title">{{ title }}</div>
+        {% if mode == 'group' and member_count is not none %}
+        <div class="member-count">({{ member_count }})</div>
+        {% endif %}
+      </div>
+      {% if mode == 'single' and subtitle %}
+      <div class="subtitle">{{ subtitle }}</div>
+      {% endif %}
+    </div>
+    <div class="header-actions">
+      {% if mode == 'group' and muted %}<div class="mute-bell"></div>{% endif %}
+      <div class="more">···</div>
+    </div>
   </div>
 
   <!-- 聊天区 -->
   <div class="chat-wrap" id="chat-wrap">
     <div class="chat-inner" id="chat-inner">
+      {% if not messages or messages[0].kind != 'timestamp' %}
       <div class="time-stamp" id="t1">13:12</div>
-
+      {% endif %}
       {% for m in messages %}
         {% if m.kind == 'sys' %}
-          <div class="sys-msg" id="{{ m.dom_id }}">{{ m.text }}</div>
-        {% elif m.kind == 'image' %}
-          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
-            {% if m.sender_avatar %}
-            <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
-            {% else %}
-            <div class="avatar avatar-default"></div>
+          <div class="sys-msg {{ 'flash' if m.flash else '' }}" id="{{ m.dom_id }}">{{ m.text }}</div>
+        {% elif m.kind == 'timestamp' %}
+          <div class="time-stamp" id="{{ m.dom_id }}">{{ m.text }}</div>
+        {% elif m.kind == 'emoji' %}
+          <div class="msg emoji {{ m.css_class }} {{ 'no-avatar' if not m.show_avatar else '' }}" id="{{ m.dom_id }}">
+            {% if m.show_avatar %}
+              {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+              {% else %}
+              <div class="avatar avatar-default"></div>
+              {% endif %}
             {% endif %}
             <div class="body">
-              {% if not m.is_self %}<div class="sender">{{ m.sender_name }}</div>{% endif %}
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span>{% if m.label %}<span class="sender-label">{{ m.label }}</span>{% endif %}</div>{% endif %}
+              <div class="bubble"><span class="emoji-text">{{ m.text }}</span></div>
+            </div>
+          </div>
+        {% elif m.kind == 'image' %}
+          <div class="msg {{ m.css_class }} {{ 'no-avatar' if not m.show_avatar else '' }}" id="{{ m.dom_id }}">
+            {% if m.show_avatar %}
+              {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+              {% else %}
+              <div class="avatar avatar-default"></div>
+              {% endif %}
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span>{% if m.label %}<span class="sender-label">{{ m.label }}</span>{% endif %}</div>{% endif %}
               <div class="bubble img-bubble">
                 <div class="img-wrap">
                   <img src="{{ m.image_url }}" alt="{{ m.text or '' }}">
@@ -198,15 +335,35 @@
               </div>
             </div>
           </div>
-        {% else %}
-          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
-            {% if m.sender_avatar %}
-            <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
-            {% else %}
-            <div class="avatar avatar-default"></div>
+        {% elif m.kind == 'video' %}
+          <div class="msg {{ m.css_class }} {{ 'no-avatar' if not m.show_avatar else '' }}" id="{{ m.dom_id }}">
+            {% if m.show_avatar %}
+              {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+              {% else %}
+              <div class="avatar avatar-default"></div>
+              {% endif %}
             {% endif %}
             <div class="body">
-              {% if not m.is_self %}<div class="sender">{{ m.sender_name }}</div>{% endif %}
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span>{% if m.label %}<span class="sender-label">{{ m.label }}</span>{% endif %}</div>{% endif %}
+              <div class="bubble video-bubble">
+                <img class="video-cover" src="{{ m.cover_url or m.video_url }}" alt="">
+                <div class="video-play"></div>
+                <div class="video-duration">{{ m.duration }}</div>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="msg {{ m.css_class }} {{ 'no-avatar' if not m.show_avatar else '' }}" id="{{ m.dom_id }}">
+            {% if m.show_avatar %}
+              {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+              {% else %}
+              <div class="avatar avatar-default"></div>
+              {% endif %}
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span>{% if m.label %}<span class="sender-label">{{ m.label }}</span>{% endif %}</div>{% endif %}
               <div class="bubble">{{ m.text }}</div>
             </div>
           </div>
@@ -219,8 +376,12 @@
   <div class="input-bar">
     <div class="ib-voice"></div>
     <div class="ib-input"></div>
+    <div class="ib-emoji"></div>
     <div class="ib-plus"></div>
   </div>
+
+  <!-- 底部手势条 -->
+  <div class="home-indicator"></div>
 
 <script>
   const TIMELINE = {{ timeline | tojson }};

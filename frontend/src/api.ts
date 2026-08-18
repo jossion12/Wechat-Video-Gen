@@ -24,10 +24,10 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** 上传文件（头像或图片素材），返回服务端存储的 URL。 */
+/** 上传文件（头像、图片素材或背景图），返回服务端存储的 URL。 */
 export async function uploadFile(
   file: File,
-  kind: 'avatar' | 'image',
+  kind: 'avatar' | 'image' | 'background',
 ): Promise<{ url: string; kind: string }> {
   const form = new FormData();
   form.append('file', file);
