@@ -1,0 +1,14 @@
+{
+  "mode": "single",
+  "title": "周末计划",
+  "background": "#ededed",
+  "participants": [
+    { "id": "me", "name": "我", "avatar_url": null },
+    { "id": "her", "name": "她", "avatar_url": null }
+  ],
+  "messages": [
+    { "sender_id": "me", "kind": "text", "text": "在吗", "delay_ms": 1500 },
+    { "sender_id": "her", "kind": "text", "text": "嗯,怎么了", "delay_ms": 1500 },
+    { "sender_id": "me", "kind": "text", "text": "周末吃饭?", "delay_ms": 1500 }
+  ]
+}

@@ -1,0 +1,6 @@
+fastapi==0.115.*
+uvicorn[standard]==0.32.*
+jinja2==3.1.*
+playwright==1.47.*
+python-multipart==0.0.*
+pytest==8.*
