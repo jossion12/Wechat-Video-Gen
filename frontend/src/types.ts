@@ -1,6 +1,8 @@
 export type Mode = 'single' | 'group';
 export type MessageKind = 'text' | 'image' | 'sys' | 'timestamp' | 'video' | 'emoji';
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
+export type VideoKind = 'chat';
+export type VideoTemplate = 'wechat';
 
 export interface StatusBar {
   time: string; // default '12:34'
@@ -35,7 +37,8 @@ export interface Message {
   delay_ms: number; // default 1500
 }
 
-export interface ChatConfig {
+/** 聊天场景配置。 */
+export interface ChatScene {
   mode: Mode; // default 'group'
   title: string; // default '群聊'
   subtitle: string | null; // shown below title in single chat
@@ -47,6 +50,14 @@ export interface ChatConfig {
   muted: boolean; // show mute bell in group header
   participants: Participant[]; // at least 2
   messages: Message[]; // at least 1, ≤30
+}
+
+/** 视频生成顶层 DSL。 */
+export interface VideoDSL {
+  schema_version: '1.0';
+  kind: VideoKind;
+  template: VideoTemplate;
+  scene: ChatScene;
 }
 
 export interface JobStatusResponse {

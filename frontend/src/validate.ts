@@ -1,11 +1,11 @@
-import type { ChatConfig } from './types';
+import type { ChatScene } from './types';
 
 /**
  * 与服务端 models.py 校验对齐的客户端预校验。
  * 返回 null 表示通过;否则返回面向用户的中文提示。
  * 预览与渲染共用,保证不完整的配置不会打到后端产生 422。
  */
-export function validateConfig(config: ChatConfig): string | null {
+export function validateConfig(config: ChatScene): string | null {
   if (config.participants.length < 2) {
     return '至少需要 2 名参与者';
   }

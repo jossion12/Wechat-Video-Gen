@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import time
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+if TYPE_CHECKING:
+    from app.dsl import VideoDSL
 
 SYSTEM_SENDER_ID = "__system__"
 
@@ -136,82 +139,6 @@ class Message(BaseModel):
         return self
 
 
-class ChatConfig(BaseModel):
-    """一次完整配置。"""
-
-    mode: Literal["single", "group"] = "group"
-    title: str = "群聊"
-    subtitle: str | None = None  # 单聊时显示在标题下方,如企业备注
-    background: str = "#ededed"
-    background_image_url: str | None = None  # 整页背景图;有值时优先于 background 颜色
-    duration_ms: int | None = None  # None = 自动算
-    status_bar: StatusBar = Field(default_factory=StatusBar)
-    member_count: int | None = None  # 群聊人数,如 221
-    muted: bool = False  # 群聊免打扰铃铛
-    participants: list[Participant] = Field(min_length=MIN_PARTICIPANTS)
-    messages: list[Message] = Field(min_length=1, max_length=MAX_MESSAGES)
-
-    @field_validator("title")
-    @classmethod
-    def title_not_empty(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("title must not be empty")
-        if len(v) > 40:
-            raise ValueError("title must be <= 40 chars")
-        return v
-
-    @field_validator("background")
-    @classmethod
-    def background_hex(cls, v: str) -> str:
-        v = v.strip()
-        if not v.startswith("#") or len(v) not in (4, 7):
-            raise ValueError("background must be a hex color like #ededed")
-        return v
-
-    @field_validator("duration_ms")
-    @classmethod
-    def duration_range(cls, v: int | None) -> int | None:
-        if v is not None:
-            if v <= 0:
-                raise ValueError("duration_ms must be a positive integer")
-            if v > MAX_DURATION_MS:
-                raise ValueError(f"duration_ms must be <= {MAX_DURATION_MS}")
-        return v
-
-    @model_validator(mode="after")
-    def check_references(self) -> "ChatConfig":
-        ids = {p.id for p in self.participants}
-        if len(ids) != len(self.participants):
-            raise ValueError("participant ids must be unique")
-        for m in self.messages:
-            if m.kind not in {"sys", "timestamp"} and m.sender_id not in ids:
-                raise ValueError(
-                    f"sender_id {m.sender_id!r} does not match any participant id"
-                )
-        if self.messages and self.messages[0].delay_ms < FIRST_MESSAGE_MIN_DELAY_MS:
-            raise ValueError(
-                "first message delay_ms must be >= "
-                f"{FIRST_MESSAGE_MIN_DELAY_MS} (leave time for the timestamp)"
-            )
-        # 单聊不限制参与者数量(至少 2 个,见 participants min_length);
-        # 方向规则见 renderer._is_self:participants[0] 视为"我",其余走左侧。
-        return self
-
-
-class Job(BaseModel):
-    """录制任务(后端内部状态)。"""
-
-    id: str
-    status: Literal["queued", "running", "done", "failed"] = "queued"
-    progress: int = 0
-    config: ChatConfig
-    output_url: str | None = None
-    error: str | None = None
-    created_at: float = Field(default_factory=time.time)
-    finished_at: float | None = None
-
-
 class JobStatus(BaseModel):
     """API 返回的任务状态(不含 config)。"""
 
@@ -222,9 +149,3 @@ class JobStatus(BaseModel):
     error: str | None
     created_at: float
     finished_at: float | None
-
-
-def auto_duration(messages: list[Message], first_delay_ms: int = 1200) -> int:
-    """自动算总时长:第一条消息的时间戳间隔 + 各消息 delay 之和 + 前后 buffer。"""
-    base = first_delay_ms + sum(m.delay_ms for m in messages)
-    return base + 1500

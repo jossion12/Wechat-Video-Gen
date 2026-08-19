@@ -14,8 +14,8 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import queue
-from app.models import ChatConfig
-from app.renderer import render_template
+from app.dsl import VideoDSL
+from app.renderer import render_dsl
 from app.storage import ALLOWED_MIME, MAX_UPLOAD_SIZE, OUTPUTS, UPLOADS
 
 logging.basicConfig(
@@ -73,16 +73,16 @@ async def upload(file: UploadFile = File(...), kind: str = Form("image")):
 # ---------- 预览 / 渲染 ----------
 
 @app.post("/api/preview-html")
-def preview_html(config: ChatConfig):
-    """接收 ChatConfig,返回拼好的 HTML(只拼模板,不录制)。"""
-    return {"html": render_template(config)}
+def preview_html(dsl: VideoDSL):
+    """接收 VideoDSL,返回拼好的 HTML(只拼模板,不录制)。"""
+    return {"html": render_dsl(dsl)}
 
 
 @app.post("/api/render", status_code=202)
-def render(config: ChatConfig):
-    """接收 ChatConfig,入队,返回 job_id。"""
+def render(dsl: VideoDSL):
+    """接收 VideoDSL,入队,返回 job_id。"""
     try:
-        job_id = queue.enqueue(config)
+        job_id = queue.enqueue(dsl)
     except queue.QueueFullError:
         raise HTTPException(503, "queue is full, please try again later")
     logger.info("Render requested, job=%s", job_id)

@@ -1,36 +1,41 @@
 {
-  "mode": "group",
-  "title": "心引力宇宙-OPC圈成都",
-  "member_count": 221,
-  "muted": true,
-  "background": "#ededed",
-  "background_image_url": null,
-  "status_bar": {
-    "time": "00:00",
-    "battery_level": 61,
-    "network_speed": "300 B/s",
-    "signal_type": "5A",
-    "signal_type_secondary": "5G",
-    "dual_sim": true,
-    "show_wifi": true,
-    "show_signal": true,
-    "show_bluetooth": true,
-    "show_alarm": true,
-    "show_nfc": true,
-    "app_icons": ["bilibili"]
-  },
-  "participants": [
-    { "id": "me", "name": "我", "avatar_url": null, "label": null },
-    { "id": "inview", "name": "InVIEW", "avatar_url": null, "label": null },
-    { "id": "kelly", "name": "刘雨昕 Kelly Liu", "avatar_url": null, "label": "【OPC圈成都】" }
-  ],
-  "messages": [
-    { "sender_id": "__system__", "kind": "timestamp", "text": "星期五 18:27", "delay_ms": 1500 },
-    { "sender_id": "inview", "kind": "video", "video_url": "/uploads/video.mp4", "cover_url": "/uploads/cover.jpg", "duration": "0:10", "delay_ms": 2500 },
-    { "sender_id": "inview", "kind": "text", "text": "🤔提示词堪比论文", "delay_ms": 1500 },
-    { "sender_id": "kelly", "kind": "text", "text": "哈哈哈", "delay_ms": 1200 },
-    { "sender_id": "kelly", "kind": "text", "text": "但其实只要找到参考文献。", "delay_ms": 1500 },
-    { "sender_id": "kelly", "kind": "text", "text": "告诉他\n像素级模仿就可以了。", "delay_ms": 1500 },
-    { "sender_id": "kelly", "kind": "emoji", "text": "🤔", "delay_ms": 1200 }
-  ]
+  "schema_version": "1.0",
+  "kind": "chat",
+  "template": "wechat",
+  "scene": {
+    "mode": "group",
+    "title": "心引力宇宙-OPC圈成都",
+    "member_count": 221,
+    "muted": true,
+    "background": "#ededed",
+    "background_image_url": null,
+    "status_bar": {
+      "time": "00:00",
+      "battery_level": 61,
+      "network_speed": "300 B/s",
+      "signal_type": "5A",
+      "signal_type_secondary": "5G",
+      "dual_sim": true,
+      "show_wifi": true,
+      "show_signal": true,
+      "show_bluetooth": true,
+      "show_alarm": true,
+      "show_nfc": true,
+      "app_icons": ["bilibili"]
+    },
+    "participants": [
+      { "id": "me", "name": "我", "avatar_url": null, "label": null },
+      { "id": "inview", "name": "InVIEW", "avatar_url": null, "label": null },
+      { "id": "kelly", "name": "刘雨昕 Kelly Liu", "avatar_url": null, "label": "【OPC圈成都】" }
+    ],
+    "messages": [
+      { "sender_id": "__system__", "kind": "timestamp", "text": "星期五 18:27", "delay_ms": 1500 },
+      { "sender_id": "inview", "kind": "video", "video_url": "/uploads/video.mp4", "cover_url": "/uploads/cover.jpg", "duration": "0:10", "delay_ms": 2500 },
+      { "sender_id": "inview", "kind": "text", "text": "🤔提示词堪比论文", "delay_ms": 1500 },
+      { "sender_id": "kelly", "kind": "text", "text": "哈哈哈", "delay_ms": 1200 },
+      { "sender_id": "kelly", "kind": "text", "text": "但其实只要找到参考文献。", "delay_ms": 1500 },
+      { "sender_id": "kelly", "kind": "text", "text": "告诉他\n像素级模仿就可以了。", "delay_ms": 1500 },
+      { "sender_id": "kelly", "kind": "emoji", "text": "🤔", "delay_ms": 1200 }
+    ]
+  }
 }

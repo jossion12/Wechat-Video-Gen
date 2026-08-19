@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { submitRender } from './api';
-import type { ChatConfig, Message, Participant } from './types';
+import type { ChatScene, Message, Participant, VideoDSL } from './types';
 import { validateConfig } from './validate';
 import { HeaderEditor } from './components/HeaderEditor';
 import { StatusBarEditor } from './components/StatusBarEditor';
@@ -11,7 +11,7 @@ import { ProgressPanel } from './components/ProgressPanel';
 
 const SYSTEM_ID = '__system__';
 
-function createDefaultConfig(): ChatConfig {
+function createDefaultScene(): ChatScene {
   return {
     mode: 'group',
     title: '群聊',
@@ -40,51 +40,52 @@ function createDefaultConfig(): ChatConfig {
   };
 }
 
+function createDefaultDSL(): VideoDSL {
+  return {
+    schema_version: '1.0',
+    kind: 'chat',
+    template: 'wechat',
+    scene: createDefaultScene(),
+  };
+}
+
 export default function App() {
-  const [config, setConfig] = useState<ChatConfig>(createDefaultConfig);
+  const [dsl, setDsl] = useState<VideoDSL>(createDefaultDSL);
   const [jobId, setJobId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const updateHeader = useCallback(
-    (patch: {
-      mode?: ChatConfig['mode'];
-      title?: string;
-      background?: string;
-      background_image_url?: string | null;
-    }) => {
-      setConfig((prev) => ({ ...prev, ...patch }));
-    },
-    [],
-  );
+  const updateScene = useCallback((patch: Partial<ChatScene>) => {
+    setDsl((prev) => ({ ...prev, scene: { ...prev.scene, ...patch } }));
+  }, []);
 
   const updateStatusBar = useCallback(
-    (patch: Partial<ChatConfig['status_bar']>) => {
-      setConfig((prev) => ({
+    (patch: Partial<ChatScene['status_bar']>) => {
+      setDsl((prev) => ({
         ...prev,
-        status_bar: { ...prev.status_bar, ...patch },
+        scene: { ...prev.scene, status_bar: { ...prev.scene.status_bar, ...patch } },
       }));
     },
     [],
   );
 
   const updateParticipants = useCallback((participants: Participant[]) => {
-    setConfig((prev) => {
+    setDsl((prev) => {
       const ids = new Set(participants.map((p) => p.id));
       // 同步清理已被删除参与者的消息，避免出现悬空 sender_id
-      const messages = prev.messages.filter(
+      const messages = prev.scene.messages.filter(
         (m) => m.sender_id === SYSTEM_ID || ids.has(m.sender_id),
       );
-      return { ...prev, participants, messages };
+      return { ...prev, scene: { ...prev.scene, participants, messages } };
     });
   }, []);
 
   const updateMessages = useCallback((messages: Message[]) => {
-    setConfig((prev) => ({ ...prev, messages }));
+    setDsl((prev) => ({ ...prev, scene: { ...prev.scene, messages } }));
   }, []);
 
   const handleRender = async () => {
-    const problem = validateConfig(config);
+    const problem = validateConfig(dsl.scene);
     if (problem) {
       setSubmitError(problem);
       return;
@@ -92,7 +93,7 @@ export default function App() {
     setSubmitError(null);
     setSubmitting(true);
     try {
-      const id = await submitRender(config);
+      const id = await submitRender(dsl);
       setJobId(id);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : '提交渲染任务失败');
@@ -110,21 +111,21 @@ export default function App() {
       <main className="app-main">
         <div className="left-column">
           <HeaderEditor
-            mode={config.mode}
-            title={config.title}
-            background={config.background}
-            backgroundImage={config.background_image_url}
-            onChange={updateHeader}
+            mode={dsl.scene.mode}
+            title={dsl.scene.title}
+            background={dsl.scene.background}
+            backgroundImage={dsl.scene.background_image_url}
+            onChange={updateScene}
           />
-          <StatusBarEditor statusBar={config.status_bar} onChange={updateStatusBar} />
+          <StatusBarEditor statusBar={dsl.scene.status_bar} onChange={updateStatusBar} />
           <ParticipantList
-            participants={config.participants}
-            mode={config.mode}
+            participants={dsl.scene.participants}
+            mode={dsl.scene.mode}
             onChange={updateParticipants}
           />
           <MessageList
-            participants={config.participants}
-            messages={config.messages}
+            participants={dsl.scene.participants}
+            messages={dsl.scene.messages}
             onChange={updateMessages}
           />
           <div className="card submit-card">
@@ -140,7 +141,7 @@ export default function App() {
           </div>
         </div>
         <div className="right-column">
-          <PreviewPanel config={config} />
+          <PreviewPanel dsl={dsl} />
           <ProgressPanel jobId={jobId} />
         </div>
       </main>

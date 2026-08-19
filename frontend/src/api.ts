@@ -1,4 +1,4 @@
-import type { ChatConfig, JobStatusResponse, RenderJobEvent } from './types';
+import type { JobStatusResponse, RenderJobEvent, VideoDSL } from './types';
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   let res: Response;
@@ -45,21 +45,21 @@ export async function uploadFile(
 }
 
 /** 获取预览 HTML 文档字符串。 */
-export async function previewHtml(config: ChatConfig): Promise<string> {
+export async function previewHtml(dsl: VideoDSL): Promise<string> {
   const data = await requestJson<{ html: string }>('/api/preview-html', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
+    body: JSON.stringify(dsl),
   });
   return data.html;
 }
 
 /** 提交渲染任务，返回任务 ID。 */
-export async function submitRender(config: ChatConfig): Promise<string> {
+export async function submitRender(dsl: VideoDSL): Promise<string> {
   const data = await requestJson<{ job_id: string }>('/api/render', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
+    body: JSON.stringify(dsl),
   });
   return data.job_id;
 }

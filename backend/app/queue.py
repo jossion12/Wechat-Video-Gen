@@ -14,7 +14,8 @@ import uuid
 from contextlib import asynccontextmanager
 
 from app import recorder
-from app.models import ChatConfig, Job, JobStatus
+from app.dsl import Job, VideoDSL
+from app.models import JobStatus
 
 logger = logging.getLogger("queue")
 
@@ -33,12 +34,12 @@ _subscribers: dict[str, list[asyncio.Queue]] = {}
 
 # ---------- 对外接口 ----------
 
-def enqueue(config: ChatConfig) -> str:
+def enqueue(dsl: VideoDSL) -> str:
     """入队并返回 job_id;队列满抛 QueueFullError。"""
     if _queue.full():
         raise QueueFullError("queue is full")
     job_id = uuid.uuid4().hex
-    job = Job(id=job_id, config=config)
+    job = Job(id=job_id, config=dsl)
     _jobs[job_id] = job
     _queue.put_nowait(job_id)
     logger.info("Job %s queued", job_id)
@@ -123,7 +124,7 @@ async def _process_job(job_id: str) -> None:
             job.progress = percent
             _publish(job_id, {"status": "running", "progress": percent})
 
-        await recorder.render_chat(job.config, job_id, progress_cb)
+        await recorder.render_video(job.config, job_id, progress_cb)
 
         job.status = "done"
         job.progress = 100

@@ -17,8 +17,8 @@ from typing import Awaitable, Callable
 
 from playwright.async_api import async_playwright
 
-from app.models import ChatConfig
-from app.renderer import render_template, resolve_duration_ms
+from app.dsl import VideoDSL
+from app.renderer import render_dsl, resolve_duration_ms
 from app.storage import OUTPUTS
 
 logger = logging.getLogger("recorder")
@@ -34,12 +34,12 @@ CHROMIUM_ARGS = [
 VIEWPORT = {"width": 1080, "height": 1920}
 
 
-async def render_chat(
-    config: ChatConfig, job_id: str, progress_callback: ProgressCallback
+async def render_video(
+    dsl: VideoDSL, job_id: str, progress_callback: ProgressCallback
 ) -> Path:
     """渲染 → 录制 → 转码,返回输出 mp4 路径。任何异常都会清理临时产物并抛出。"""
-    html = render_template(config)
-    duration_ms = resolve_duration_ms(config)
+    html = render_dsl(dsl)
+    duration_ms = resolve_duration_ms(dsl.scene)
     duration_s = duration_ms / 1000.0
     output_path = OUTPUTS / f"{job_id}.mp4"
     tmp_dir = Path(tempfile.mkdtemp(prefix="wvg-"))

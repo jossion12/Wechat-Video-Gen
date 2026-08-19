@@ -6,7 +6,8 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from app.models import ChatConfig, Message, auto_duration
+from app.dsl import ChatScene, VideoDSL, auto_duration
+from app.models import Message
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
@@ -20,7 +21,7 @@ def load_template():
     return _env.get_template("wechat_chat.html.j2")
 
 
-def build_participants(config: ChatConfig) -> list[dict]:
+def build_participants(config: ChatScene) -> list[dict]:
     """把参与者展平成模板需要的结构。"""
     return [
         {
@@ -34,7 +35,7 @@ def build_participants(config: ChatConfig) -> list[dict]:
     ]
 
 
-def _is_self(config: ChatConfig, sender_id: str) -> bool:
+def _is_self(config: ChatScene, sender_id: str) -> bool:
     """消息方向规则(D3):
     - 单聊:participants[0] 视为"我",其消息走右侧
     - 群聊:仅 id == "me" 的参与者走右侧
@@ -44,7 +45,7 @@ def _is_self(config: ChatConfig, sender_id: str) -> bool:
     return sender_id == "me"
 
 
-def build_messages(config: ChatConfig) -> list[dict]:
+def build_messages(config: ChatScene) -> list[dict]:
     """把消息列表展平成模板结构,加上 css_class / is_self / flash / show_avatar。"""
     by_id = {p.id: p for p in config.participants}
     out: list[dict] = []
@@ -125,7 +126,7 @@ def build_messages(config: ChatConfig) -> list[dict]:
     return out
 
 
-def build_timeline(config: ChatConfig) -> list[dict]:
+def build_timeline(config: ChatScene) -> list[dict]:
     """生成 TIMELINE 数组 — 见 docs/04-template.md §4.6。"""
     # 如果用户第一条就是 timestamp,则用它的内容替换默认时间戳
     first_msg = config.messages[0] if config.messages else None
@@ -155,29 +156,38 @@ def build_timeline(config: ChatConfig) -> list[dict]:
     return timeline
 
 
-def resolve_duration_ms(config: ChatConfig) -> int:
+def resolve_duration_ms(config: ChatScene) -> int:
     """总时长:用户显式传 duration_ms 则用用户值,否则自动算。"""
     if config.duration_ms is not None:
         return config.duration_ms
     return auto_duration(config.messages)
 
 
-def render_template(config: ChatConfig) -> str:
-    """渲染完整 HTML 文档字符串。预览与录制共用同一入口(D1)。"""
+def render_chat_wechat(scene: ChatScene) -> str:
+    """渲染微信聊天场景 HTML。预览与录制共用同一入口(D1)。"""
     tmpl = load_template()
     ctx = {
-        "config": config,
-        "mode": config.mode,
-        "title": config.title,
-        "subtitle": config.subtitle,
-        "background": config.background,
-        "background_image_url": config.background_image_url,
-        "status_bar": config.status_bar,
-        "member_count": config.member_count,
-        "muted": config.muted,
-        "participants": build_participants(config),
-        "messages": build_messages(config),
-        "timeline": build_timeline(config),
-        "duration_ms": resolve_duration_ms(config),
+        "config": scene,
+        "mode": scene.mode,
+        "title": scene.title,
+        "subtitle": scene.subtitle,
+        "background": scene.background,
+        "background_image_url": scene.background_image_url,
+        "status_bar": scene.status_bar,
+        "member_count": scene.member_count,
+        "muted": scene.muted,
+        "participants": build_participants(scene),
+        "messages": build_messages(scene),
+        "timeline": build_timeline(scene),
+        "duration_ms": resolve_duration_ms(scene),
     }
     return tmpl.render(**ctx)
+
+
+def render_dsl(dsl: VideoDSL) -> str:
+    """按 kind + template 分发渲染。"""
+    if dsl.kind != "chat":
+        raise ValueError(f"unsupported dsl kind: {dsl.kind}")
+    if dsl.template == "wechat":
+        return render_chat_wechat(dsl.scene)
+    raise ValueError(f"unsupported chat template: {dsl.template}")
