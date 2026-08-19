@@ -11,16 +11,13 @@
     "status_bar": {
       "time": "00:00",
       "battery_level": 61,
-      "network_speed": "3.5 K/s",
-      "signal_type": "5A",
+      "signal_type": "5G",
       "signal_type_secondary": "5G",
       "dual_sim": true,
       "show_wifi": true,
       "show_signal": true,
       "show_bluetooth": true,
-      "show_alarm": true,
-      "show_nfc": true,
-      "app_icons": ["bilibili"]
+      "show_alarm": true
     },
     "participants": [
       { "id": "me", "name": "我", "avatar_url": "/uploads/me.jpg", "label": null },

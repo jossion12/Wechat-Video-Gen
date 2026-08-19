@@ -84,7 +84,7 @@ Jinja2 渲染时收到如下变量(由 `renderer.py` 注入):
 | `css_class` | string | `self` / `""` / `__system__` / `__timestamp__` |
 | `is_self` | bool | 是否"自己"发言 |
 | `flash` | bool | 系统消息是否带红色脉冲 |
-| `show_avatar` | bool | 是否显示头像(连续消息只显示一次) |
+| `show_avatar` | bool | 是否显示头像 |
 | `show_name` | bool | 是否显示发送者昵称(自己消息和连续消息不显示) |
 
 ## 4.5 参与者字典(`participants` 元素)
@@ -97,27 +97,28 @@ Jinja2 渲染时收到如下变量(由 `renderer.py` 注入):
 | `label` | string 或 null | 单聊副标题 / 群聊企业标签 |
 | `css_class` | string | 等于 `id`(供 `.avatar.<id>` 选择器使用) |
 
-## 4.6 连续消息合并头像
+## 4.6 连续消息头像
 
-`renderer.build_messages()` 会记录上一个普通聊天消息的发送者。
-同一 `sender_id` 连续发送时,后续消息的 `show_avatar` 与 `show_name` 为 `False`,模板通过 `no-avatar` 类隐藏头像并去掉左侧留白,模拟真实微信效果。
+`renderer.build_messages()` 为每条普通聊天消息都设置 `show_avatar=True`,因此同一 `sender_id` 连续发送时,每条消息都会显示头像。`show_name` 仅对"自己"的消息为 `False`(自己消息通过右侧绿色气泡识别,不显示昵称)。
 
-系统消息(`sys`)和时间戳(`timestamp`)会重置合并状态。
+系统消息(`sys`)和时间戳(`timestamp`)不显示头像。
 
 ## 4.7 TIMELINE 生成规则
 
 `renderer.py` 构造:
 
 ```python
-# 若用户第一条消息是 timestamp,则用它替换默认时间戳
-if first_msg.kind == "timestamp":
-    timeline = [{"id": "m1", "at": 500, "type": "timestamp"}]
-    start_idx = 1
-else:
-    timeline = [{"id": "t1", "at": 500, "type": "stamp"}]
-    start_idx = 0
+# 若用户第一条消息是 timestamp,则显示用户时间戳;否则直接显示第一条聊天消息
+timeline = []
+start_idx = 0
+t = 500
 
-t = 1200
+first_msg = messages[0] if messages else None
+if first_msg and first_msg.kind == "timestamp" and first_msg.text:
+    timeline.append({"id": "m1", "at": t, "type": "timestamp"})
+    start_idx = 1
+    t = 1200
+
 for i, m in enumerate(messages[start_idx:], start=start_idx + 1):
     timeline.append({
         "id": f"m{i}",
@@ -135,7 +136,7 @@ for i, m in enumerate(messages[start_idx:], start=start_idx + 1):
 ## 4.8 时长计算
 
 ```python
-def auto_duration(messages, first_delay_ms=1200):
+def auto_duration(messages, first_delay_ms=500):
     return first_delay_ms + sum(m.delay_ms for m in messages) + 1500
 ```
 
@@ -179,7 +180,7 @@ def auto_duration(messages, first_delay_ms=1200):
 - ✅ emoji 消息渲染为大表情
 - ✅ 时间戳(`timestamp`)消息渲染为 `.time-stamp`
 - ✅ 系统消息不显示头像
-- ✅ 连续消息只显示一次头像
+- ✅ 连续消息每次都显示头像
 - ✅ 状态栏时间/网速/电池可配置
 - ✅ 单聊副标题、群聊人数、免打扰铃铛可配置
 - ✅ TIMELINE JSON 合法可被 `JSON.parse` 解析

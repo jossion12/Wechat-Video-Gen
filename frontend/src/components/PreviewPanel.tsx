@@ -6,6 +6,8 @@ import { validateConfig } from '../validate';
 
 interface PreviewPanelProps {
   dsl: VideoDSL;
+  /** 当前 session_id;预览请求需要附带。 */
+  sessionId: string | null;
 }
 
 /**
@@ -13,7 +15,7 @@ interface PreviewPanelProps {
  * 并按 1/3 缩放到 360×640 的手机画框。每次更新更换 iframe key 以重启动画。
  * 配置不完整（与渲染共用 validateConfig 校验）时不请求后端，显示具体原因。
  */
-export function PreviewPanel({ dsl }: PreviewPanelProps) {
+export function PreviewPanel({ dsl, sessionId }: PreviewPanelProps) {
   const debouncedDsl = useDebounce(dsl, 300);
   const [html, setHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,7 +40,7 @@ export function PreviewPanel({ dsl }: PreviewPanelProps) {
     setHint(null);
     setLoading(true);
     setError(null);
-    previewHtml(debouncedDsl)
+    previewHtml(debouncedDsl, sessionId ?? '')
       .then((h) => {
         if (cancelled) return;
         setHtml(h);

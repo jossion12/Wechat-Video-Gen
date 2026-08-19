@@ -13,11 +13,12 @@ const KIND_OPTIONS: { value: MessageKind; label: string }[] = [
 interface MessageListProps {
   participants: Participant[];
   messages: Message[];
+  sessionId: string | null;
   onChange: (messages: Message[]) => void;
 }
 
 /** 消息列表：类型、发送者、内容、图片、间隔时间与排序操作。 */
-export function MessageList({ participants, messages, onChange }: MessageListProps) {
+export function MessageList({ participants, messages, sessionId, onChange }: MessageListProps) {
   const updateAt = (index: number, patch: Partial<Message>) => {
     onChange(messages.map((m, i) => (i === index ? { ...m, ...patch } : m)));
   };
@@ -85,10 +86,19 @@ export function MessageList({ participants, messages, onChange }: MessageListPro
                   value={m.kind}
                   onChange={(e) => {
                     const kind = e.target.value as MessageKind;
-                    updateAt(i, {
-                      kind,
-                      sender_id: kind === 'sys' ? SYSTEM_ID : m.sender_id,
-                    });
+                    // 切换类型时,同步修正 sender_id:
+                    // - 切到 sys:固定为 SYSTEM_ID
+                    // - 切到非 sys 且当前 sender_id 仍是 SYSTEM_ID:挑一个有效参与者,
+                    //   否则后端会因 '__system__' 不在参与者列表里而拒绝
+                    let senderId: string;
+                    if (kind === 'sys') {
+                      senderId = SYSTEM_ID;
+                    } else if (m.sender_id === SYSTEM_ID) {
+                      senderId = participants[0]?.id ?? '';
+                    } else {
+                      senderId = m.sender_id;
+                    }
+                    updateAt(i, { kind, sender_id: senderId });
                   }}
                 >
                   {KIND_OPTIONS.map((o) => (
@@ -131,6 +141,7 @@ export function MessageList({ participants, messages, onChange }: MessageListPro
                     value={m.image_url}
                     onChange={(url) => updateAt(i, { image_url: url })}
                     alt="消息图片"
+                    sessionId={sessionId}
                   />
                   {!m.image_url && <span className="hint">请上传图片素材（视频中的聊天图片）</span>}
                 </div>

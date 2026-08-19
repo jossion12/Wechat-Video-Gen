@@ -4,6 +4,7 @@ import { AvatarPicker } from './common/AvatarPicker';
 interface ParticipantListProps {
   participants: Participant[];
   mode: Mode;
+  sessionId: string | null;
   onChange: (participants: Participant[]) => void;
 }
 
@@ -18,7 +19,7 @@ function nextParticipantId(participants: Participant[]): string {
 }
 
 /** 参与者列表：名称、头像上传、删除与新增。 */
-export function ParticipantList({ participants, mode, onChange }: ParticipantListProps) {
+export function ParticipantList({ participants, mode, sessionId, onChange }: ParticipantListProps) {
   const updateAt = (index: number, patch: Partial<Participant>) => {
     onChange(participants.map((p, i) => (i === index ? { ...p, ...patch } : p)));
   };
@@ -46,6 +47,7 @@ export function ParticipantList({ participants, mode, onChange }: ParticipantLis
               value={p.avatar_url}
               onChange={(url) => updateAt(i, { avatar_url: url })}
               alt={`${p.name || '参与者'} 的头像`}
+              sessionId={sessionId}
             />
             <input
               type="text"

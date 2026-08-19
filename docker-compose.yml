@@ -11,6 +11,9 @@ services:
     environment:
       - WORKER_COUNT=2
       - LOG_LEVEL=info
+      - MAX_UPLOAD_SIZE=10485760   # 10MB,和前端 nginx 上限对齐
+      - AUTH_REQUIRED=false         # 生产必须 true;本地 dev 改 false
+      # - BASE_URL=http://localhost:8000  # 上传资源转绝对 URL;部署到域名时修改
     restart: unless-stopped
 
   frontend:

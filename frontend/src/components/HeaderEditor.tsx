@@ -4,22 +4,24 @@ import { AvatarPicker } from './common/AvatarPicker';
 interface HeaderEditorProps {
   mode: Mode;
   title: string;
-  background: string;
   backgroundImage: string | null;
+  opacity: number;
+  sessionId: string | null;
   onChange: (patch: {
     mode?: Mode;
     title?: string;
-    background?: string;
     background_image_url?: string | null;
+    opacity?: number;
   }) => void;
 }
 
-/** 视频头部设置：聊天模式、标题、背景颜色与背景图片。 */
+/** 视频头部设置：聊天模式、标题、背景图片与全局透明度。 */
 export function HeaderEditor({
   mode,
   title,
-  background,
   backgroundImage,
+  opacity,
+  sessionId,
   onChange,
 }: HeaderEditorProps) {
   return (
@@ -63,20 +65,6 @@ export function HeaderEditor({
           onChange={(e) => onChange({ title: e.target.value })}
         />
       </div>
-      <div className="form-row">
-        <label className="form-label" htmlFor="chat-background">
-          背景颜色
-        </label>
-        <div className="color-field">
-          <input
-            id="chat-background"
-            type="color"
-            value={background}
-            onChange={(e) => onChange({ background: e.target.value })}
-          />
-          <span className="color-value">{background}</span>
-        </div>
-      </div>
       <div className="form-row form-row--top">
         <span className="form-label">背景图片</span>
         <div className="background-image-field">
@@ -85,8 +73,26 @@ export function HeaderEditor({
             value={backgroundImage}
             onChange={(url) => onChange({ background_image_url: url })}
             alt="聊天背景图"
+            sessionId={sessionId}
           />
-          <span className="hint">可选，上传后覆盖背景颜色，整页平铺显示</span>
+          <span className="hint">可选，上传后覆盖默认背景，整页平铺显示</span>
+        </div>
+      </div>
+      <div className="form-row">
+        <label className="form-label" htmlFor="chat-opacity">
+          全局透明度
+        </label>
+        <div className="range-field">
+          <input
+            id="chat-opacity"
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={opacity}
+            onChange={(e) => onChange({ opacity: parseFloat(e.target.value) })}
+          />
+          <span className="range-value">{Math.round(opacity * 100)}%</span>
         </div>
       </div>
     </section>

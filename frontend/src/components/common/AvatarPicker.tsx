@@ -6,6 +6,8 @@ interface AvatarPickerProps {
   onChange: (url: string | null) => void;
   kind?: 'avatar' | 'image' | 'background';
   alt?: string;
+  /** 当前 session_id;上传必须在某个 session 内,以实现按任务/用户隔离。 */
+  sessionId: string | null;
 }
 
 /** 图片选择器：上传 → 缩略图预览 → 点击可更换/移除。头像、消息图片与背景图共用。 */
@@ -14,6 +16,7 @@ export function AvatarPicker({
   onChange,
   kind = 'avatar',
   alt = '图片',
+  sessionId,
 }: AvatarPickerProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -21,10 +24,14 @@ export function AvatarPicker({
 
   const pickFile = async (file: File | undefined) => {
     if (!file) return;
+    if (!sessionId) {
+      setError('会话未就绪，请稍后再试');
+      return;
+    }
     setUploading(true);
     setError(null);
     try {
-      const { url } = await uploadFile(file, kind);
+      const { url } = await uploadFile(file, kind, sessionId);
       onChange(url);
     } catch (err) {
       setError(err instanceof Error ? err.message : '上传失败');

@@ -19,7 +19,7 @@ from playwright.async_api import async_playwright
 
 from app.dsl import VideoDSL
 from app.renderer import render_dsl, resolve_duration_ms
-from app.storage import OUTPUTS
+from app.storage import OUTPUT_EXT, output_path
 
 logger = logging.getLogger("recorder")
 
@@ -35,13 +35,19 @@ VIEWPORT = {"width": 1080, "height": 1920}
 
 
 async def render_video(
-    dsl: VideoDSL, job_id: str, progress_callback: ProgressCallback
+    dsl: VideoDSL,
+    job_id: str,
+    user_id: str,
+    session_id: str,
+    progress_callback: ProgressCallback,
 ) -> Path:
     """渲染 → 录制 → 转码,返回输出 mp4 路径。任何异常都会清理临时产物并抛出。"""
     html = render_dsl(dsl)
     duration_ms = resolve_duration_ms(dsl.scene)
     duration_s = duration_ms / 1000.0
-    output_path = OUTPUTS / f"{job_id}.mp4"
+    # 提前算路径,避免 render_dsl / resolve_duration_ms 抛错时下面的 except
+    # 块还在用未赋值的同名变量(原来叫 output_path 会 shadow 导入的函数)
+    mp4_path = output_path(user_id, session_id, job_id, OUTPUT_EXT)
     tmp_dir = Path(tempfile.mkdtemp(prefix="wvg-"))
     webm_path: Path | None = None
 
@@ -80,13 +86,13 @@ async def render_video(
             finally:
                 await browser.close()
 
-        logger.info("Encoding %s -> %s", webm_path.name, output_path.name)
+        logger.info("Encoding %s -> %s", webm_path.name, mp4_path.name)
         await progress_callback(92)
-        _encode_webm_to_mp4(webm_path, output_path, duration_s)
+        _encode_webm_to_mp4(webm_path, mp4_path, duration_s)
         await progress_callback(99)
-        return output_path
+        return mp4_path
     except Exception:
-        output_path.unlink(missing_ok=True)  # 失败不产出 MP4
+        mp4_path.unlink(missing_ok=True)  # 失败不产出 MP4
         raise
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)  # 自动清理 webm 临时文件

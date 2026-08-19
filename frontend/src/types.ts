@@ -6,17 +6,14 @@ export type VideoTemplate = 'wechat';
 
 export interface StatusBar {
   time: string; // default '12:34'
-  battery_level: number; // 0-100, default 100
-  network_speed: string | null; // e.g. '3.5 K/s', '300 B/s'
-  signal_type: string | null; // e.g. '5A', '5G', '4G'
-  signal_type_secondary: string | null; // e.g. '5G', used when dual_sim is true
+  battery_level: number; // 0-100, default 61
+  signal_type: '5G' | '4G' | null;
+  signal_type_secondary: '5G' | '4G' | null;
   dual_sim: boolean;
   show_wifi: boolean; // default true
   show_signal: boolean; // default true
   show_bluetooth: boolean;
   show_alarm: boolean;
-  show_nfc: boolean;
-  app_icons: string[]; // short names/initials for left-side app icons
 }
 
 export interface Participant {
@@ -45,6 +42,7 @@ export interface ChatScene {
   background: string; // default '#ededed'
   background_image_url: string | null; // '/uploads/xxx.png' or null; 有值时优先于 background
   duration_ms: number | null; // null = auto
+  opacity: number; // 0-1, default 1
   status_bar: StatusBar;
   member_count: number | null; // group member count, e.g. 221
   muted: boolean; // show mute bell in group header
@@ -76,4 +74,47 @@ export interface RenderJobEvent {
   progress?: number;
   output_url?: string | null;
   error?: string | null;
+}
+
+// ---------- 多用户 / session 相关(新增) ----------
+
+export type FileKind = 'avatar' | 'image' | 'background';
+
+export interface FileInfo {
+  id: string;
+  session_id: string;
+  user_id: string;
+  kind: FileKind;
+  ext: string;
+  size: number;
+  content_type: string | null;
+  created_at: number;
+  url: string; // /api/files/{id}
+}
+
+export interface JobSummary {
+  id: string;
+  session_id: string;
+  user_id: string;
+  status: JobStatus;
+  progress: number;
+  output_url: string | null;
+  error: string | null;
+  created_at: number;
+  finished_at: number | null;
+}
+
+export interface SessionInfo {
+  id: string;
+  user_id: string;
+  title: string | null;
+  created_at: number;
+  last_active_at: number;
+  file_count: number;
+  job_count: number;
+}
+
+export interface SessionDetail extends SessionInfo {
+  files: FileInfo[];
+  jobs: JobSummary[];
 }

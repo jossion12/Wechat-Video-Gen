@@ -8,33 +8,27 @@
 ```python
 class StatusBar(BaseModel):
     time: str = "12:34"
-    battery_level: int = 100
-    network_speed: str | None = None      # e.g. "3.5 K/s"
-    signal_type: str | None = None        # e.g. "5A", "5G", "4G"
-    signal_type_secondary: str | None = None  # e.g. "5G", dual_sim 时显示
-    dual_sim: bool = False
+    battery_level: int = 61
+    signal_type: Literal["5G", "4G"] | None = "5G"
+    signal_type_secondary: Literal["5G", "4G"] | None = "5G"
+    dual_sim: bool = True
     show_wifi: bool = True
     show_signal: bool = True
-    show_bluetooth: bool = False
-    show_alarm: bool = False
-    show_nfc: bool = False
-    app_icons: list[str] = []             # 左侧应用图标,最多 3 个;URL 则显示图片
+    show_bluetooth: bool = True
+    show_alarm: bool = True
 ```
 
 | 字段 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `time` | string | ✗ | `12:34` | 左上角时间 |
-| `battery_level` | int | ✗ | `100` | 电量百分比,0-100 |
-| `network_speed` | string 或 null | ✗ | `null` | 网速,如 `3.5 K/s`、`300 B/s` |
-| `signal_type` | string 或 null | ✗ | `null` | 主卡信号类型,如 `5A`、`5G` |
-| `signal_type_secondary` | string 或 null | ✗ | `null` | 副卡信号类型,`dual_sim=true` 时显示,如 `5G` |
-| `dual_sim` | bool | ✗ | `false` | 是否显示双卡(右侧会出现两个信号类型) |
+| `battery_level` | int | ✗ | `61` | 电量百分比,0-100 |
+| `signal_type` | `"5G"` \| `"4G"` \| `null` | ✗ | `"5G"` | 主卡信号类型,留空不显示 |
+| `signal_type_secondary` | `"5G"` \| `"4G"` \| `null` | ✗ | `"5G"` | 副卡信号类型,`dual_sim=true` 时显示 |
+| `dual_sim` | bool | ✗ | `true` | 是否显示双卡(右侧会出现两个信号类型) |
 | `show_wifi` | bool | ✗ | `true` | WiFi 图标 |
 | `show_signal` | bool | ✗ | `true` | 信号条图标 |
-| `show_bluetooth` | bool | ✗ | `false` | 蓝牙图标 |
-| `show_alarm` | bool | ✗ | `false` | 闹钟图标 |
-| `show_nfc` | bool | ✗ | `false` | NFC 图标 |
-| `app_icons` | string[] | ✗ | `[]` | 左侧应用图标,最多 3 个,模板里显示首字母 |
+| `show_bluetooth` | bool | ✗ | `true` | 蓝牙图标 |
+| `show_alarm` | bool | ✗ | `true` | 闹钟图标 |
 
 ## 2.2 `Participant` — 聊天参与者
 
@@ -102,6 +96,7 @@ class ChatConfig(BaseModel):
     background: str = "#ededed"
     background_image_url: str | None = None
     duration_ms: int | None = None         # None = 自动算
+    opacity: float = 1.0                   # 0-1,整个内容透明度,方便叠加到其他视频
     status_bar: StatusBar = StatusBar()
     member_count: int | None = None        # 群聊人数,如 221
     muted: bool = False                    # 群聊免打扰铃铛
@@ -117,6 +112,7 @@ class ChatConfig(BaseModel):
 | `background` | hex color | ✗ | `#ededed` | 整页背景色 |
 | `background_image_url` | string 或 null | ✗ | `null` | 整页背景图(`/uploads/<uuid>.png`);有值时优先于 `background`,平铺铺满 |
 | `duration_ms` | int 或 null | ✗ | 自动 | 总录制时长(ms);`None` 时后端按消息数算 |
+| `opacity` | float | ✗ | `1.0` | 整个内容透明度,0-1,方便叠加到其他视频 |
 | `status_bar` | StatusBar | ✗ | `StatusBar()` | 顶部状态栏配置 |
 | `member_count` | int 或 null | ✗ | `null` | 群聊人数,显示为 `标题(221)` |
 | `muted` | bool | ✗ | `false` | 群聊免打扰,显示铃铛图标 |
@@ -125,12 +121,68 @@ class ChatConfig(BaseModel):
 
 **自动时长公式**:
 ```python
-def auto_duration(messages: list[Message], first_delay_ms: int = 1200) -> int:
+def auto_duration(messages: list[Message], first_delay_ms: int = 500) -> int:
     base = first_delay_ms + sum(m.delay_ms for m in messages)
-    return base + 1500  # 前后 buffer
+    return base + 1500  # 结尾 buffer
 ```
 
-## 2.5 `Job` — 录制任务(后端内部状态)
+## 2.5 `User` / `Session` / `File`(多用户 / 隔离)
+
+为了支撑多用户与任务隔离,后端引入三张 SQLite 表(见 `backend/app/db.py`):
+
+```sql
+CREATE TABLE users (
+    id          TEXT PRIMARY KEY,
+    username    TEXT NOT NULL UNIQUE,
+    created_at  REAL NOT NULL
+);
+
+CREATE TABLE sessions (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
+    title           TEXT,
+    created_at      REAL NOT NULL,
+    last_active_at  REAL NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE files (
+    id           TEXT PRIMARY KEY,
+    session_id   TEXT NOT NULL,
+    user_id      TEXT NOT NULL,
+    kind         TEXT NOT NULL,           -- 'avatar' | 'image' | 'background'
+    ext          TEXT NOT NULL,
+    size         INTEGER NOT NULL,
+    content_type TEXT,
+    created_at   REAL NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES sessions(id),
+    FOREIGN KEY (user_id)    REFERENCES users(id)
+);
+```
+
+| 表 | 关键字段 | 说明 |
+|---|---|---|
+| `users` | `id` 唯一 | 首次带 `X-User-Id` 请求即自动 upsert,后续换成 OIDC 时只改 auth 依赖 |
+| `sessions` | `(user_id, last_active_at)` 索引 | 一次"任务"=一个 session;前端启动时调 `POST /api/sessions` 建 |
+| `files` | `(session_id, kind)` | 一次上传产生一行;文件名 = `{id}.{ext}`,落 `storage/users/{user_id}/sessions/{session_id}/uploads/` |
+
+**存储布局**(实际落盘):
+
+```
+storage/
+  wechat-video-gen.db
+  users/
+    {user_id}/
+      sessions/
+        {session_id}/
+          uploads/{file_id}.{ext}    # 头像 / 图片 / 背景
+          outputs/{job_id}.mp4       # 渲染产物
+```
+
+`jobs` 表与上面的关系是 `jobs.session_id -> sessions.id`、`jobs.user_id -> users.id`,
+渲染进程从 `jobs` 读配置 / 写状态,完成后由 `/api/jobs/{id}/output` 提供下载。
+
+## 2.6 `Job` — 录制任务(后端内部状态)
 
 ```python
 class Job(BaseModel):
@@ -152,7 +204,7 @@ class Job(BaseModel):
 | `output_url` | 成功后填 `/outputs/{id}.mp4` |
 | `error` | 失败时填异常信息 |
 
-## 2.6 完整示例
+## 2.7 完整示例
 
 ```json
 {
@@ -165,14 +217,13 @@ class Job(BaseModel):
   "status_bar": {
     "time": "00:00",
     "battery_level": 61,
-    "network_speed": "300 B/s",
-    "signal_type": "5A",
+    "signal_type": "5G",
     "signal_type_secondary": "5G",
     "dual_sim": true,
+    "show_wifi": true,
+    "show_signal": true,
     "show_bluetooth": true,
-    "show_alarm": true,
-    "show_nfc": true,
-    "app_icons": ["bilibili"]
+    "show_alarm": true
   },
   "participants": [
     { "id": "me", "name": "我", "avatar_url": null },
@@ -192,12 +243,12 @@ class Job(BaseModel):
 
 预期产出:约 12s 的高还原度微信风格群聊视频。
 
-## 2.7 字段约束与错误码
+## 2.8 字段约束与错误码
 
 `/api/preview-html` 与 `/api/render` 收到非法 `ChatConfig` 时,FastAPI 自动返回 422 + 校验错误明细。
 前端应在编辑时做客户端预校验,服务端再校验一次。
 
-## 2.8 与前端的类型同步
+## 2.9 与前端的类型同步
 
 `frontend/src/types.ts` 内定义等价的 TS 类型,与 Pydantic 字段一一对应。
 后端变更模型时,前端同步修改。**不做自动生成**(避免引入额外构建复杂度)。

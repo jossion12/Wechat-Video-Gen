@@ -14,7 +14,9 @@ from app.renderer import (
     build_timeline,
     render_dsl,
     resolve_duration_ms,
+    resolve_upload_url,
 )
+from app.storage import BASE_URL
 
 
 def make_scene(**overrides) -> ChatScene:
@@ -72,7 +74,7 @@ def test_single_mode_self_class():
 
 
 def test_image_message_generates_img():
-    """✅ 图片消息生成 `<img>` 标签。"""
+    """✅ 图片消息生成 `<img>` 标签,相对路径被补成绝对 URL。"""
     dsl = make_dsl(
         messages=[
             Message(
@@ -85,7 +87,7 @@ def test_image_message_generates_img():
         ]
     )
     html = render_dsl(dsl)
-    assert '<img src="/uploads/plum.jpg"' in html
+    assert f'<img src="{BASE_URL}/uploads/plum.jpg"' in html
     assert "倚梅园的梅花开了。" in html
 
 
@@ -114,9 +116,9 @@ def test_timeline_json_parses():
     m = re.search(r"const TIMELINE = (\[.*?\]);", html, re.S)
     assert m, "TIMELINE not found in rendered html"
     parsed = json.loads(m.group(1))
-    assert parsed[0] == {"id": "t1", "at": 500, "type": "stamp"}
+    assert parsed[0] == {"id": "m1", "at": 500, "type": "msg", "flash": False}
     ids = [t["id"] for t in parsed]
-    assert ids == ["t1", "m1", "m2", "m3"]
+    assert ids == ["m1", "m2", "m3"]
     # 时间轴递增
     ats = [t["at"] for t in parsed]
     assert ats == sorted(ats)
@@ -144,7 +146,7 @@ def test_missing_avatar_uses_default_placeholder():
 
 
 def test_avatar_url_inlined_when_present():
-    """✅ 有头像 URL 时内联 background-image。"""
+    """✅ 有头像 URL 时内联 background-image,并补成绝对 URL。"""
     dsl = make_dsl(
         participants=[
             Participant(id="me", name="我", avatar_url="/uploads/me.png"),
@@ -152,15 +154,15 @@ def test_avatar_url_inlined_when_present():
         ]
     )
     html = render_dsl(dsl)
-    assert "background-image: url('/uploads/me.png')" in html
+    assert f"background-image: url('{BASE_URL}/uploads/me.png')" in html
 
 
 def test_background_image_url_rendered():
-    """✅ 设置 background_image_url 时内联整页背景图,并保留颜色兜底。"""
+    """✅ 设置 background_image_url 时内联整页背景图,并补成绝对 URL,保留颜色兜底。"""
     dsl = make_dsl(background_image_url="/uploads/bg.png")
     html = render_dsl(dsl)
     assert "background: #ededed" in html  # 颜色兜底仍在
-    assert "background-image: url('/uploads/bg.png')" in html
+    assert f"background-image: url('{BASE_URL}/uploads/bg.png')" in html
     assert "background-size: cover" in html
     assert "background-position: center" in html
 
@@ -175,13 +177,13 @@ def test_no_background_image_renders_plain_color():
 # ---- 时长 / 方向规则 / 校验 ----
 
 def test_auto_duration_formula():
-    """PERF-1:5 条消息 delay=1500 → 1200 + 5*1500 + 1500 = 10200。"""
+    """PERF-1:5 条消息 delay=1500 → 500 + 5*1500 + 1500 = 9500。"""
     msgs = [
         Message(sender_id="me", kind="text", text="x", delay_ms=1500) for _ in range(5)
     ]
-    assert auto_duration(msgs) == 10200
+    assert auto_duration(msgs) == 9500
     dsl = make_dsl(messages=msgs)
-    assert resolve_duration_ms(dsl.scene) == 10200
+    assert resolve_duration_ms(dsl.scene) == 9500
 
 
 def test_explicit_duration_wins():
@@ -242,6 +244,38 @@ def test_unknown_sender_rejected():
         )
 
 
+def test_system_sender_id_only_valid_for_sys_or_timestamp():
+    """✅ `__system__` 仅对 sys / timestamp 消息合法;其他类型会被后端拒绝,
+    防止前端误把系统消息切换为文字/图片后仍带上 __system__ sender_id。
+    """
+    # sys / timestamp:允许
+    for kind in ("sys", "timestamp"):
+        make_dsl(
+            messages=[
+                Message(
+                    sender_id="__system__",
+                    kind=kind,
+                    text="hello",
+                    delay_ms=1500,
+                )
+            ]
+        )
+    # text / image / video / emoji:必须拒绝
+    for kind in ("text", "image", "video", "emoji"):
+        payload = dict(sender_id="__system__", kind=kind, delay_ms=1500)
+        if kind == "text":
+            payload["text"] = "hello"
+        elif kind == "image":
+            payload["image_url"] = "/uploads/x.png"
+        elif kind == "video":
+            payload["video_url"] = "/uploads/v.mp4"
+            payload["duration"] = "0:10"
+        else:  # emoji
+            payload["text"] = "🤔"
+        with pytest.raises(ValidationError):
+            make_dsl(messages=[Message(**payload)])
+
+
 def test_negative_duration_rejected():
     """PERF-3:duration_ms=-1 → 422。"""
     with pytest.raises(ValidationError):
@@ -288,29 +322,25 @@ def test_requires_at_least_two_participants():
 # ---- 新增:状态栏 / 头部 / 视频 / 表情 / 时间戳 / 合并头像 ----
 
 def test_status_bar_rendered():
-    """✅ 状态栏时间、网速、双卡、电池、图标可配置。"""
+    """✅ 状态栏时间、双卡、电池可配置（fluentui 图标內联）。"""
     dsl = make_dsl(
         status_bar=StatusBar(
             time="00:00",
             battery_level=61,
-            network_speed="3.5 K/s",
-            signal_type="5A",
+            signal_type="5G",
             dual_sim=True,
             show_wifi=True,
             show_signal=True,
             show_bluetooth=True,
             show_alarm=True,
-            show_nfc=True,
-            app_icons=["bilibili"],
         )
     )
     html = render_dsl(dsl)
     assert "00:00" in html
-    assert "3.5 K/s" in html
-    assert "5A" in html
-    # 电池电量填充宽度按 30px 槽宽计算: 61% -> 18px
-    assert 'width="18"' in html
-    # NFC / 闹钟 / 蓝牙 / WiFi / 信号 / 电池 共 6 个 SVG 图标
+    assert "5G" in html
+    # fluentui 电池图标已內联(SVG),Battery 6 对应 61% (path起点唯一)
+    assert 'M17.0001 6C18.65' in html
+    # 闹钟 / 蓝牙 / WiFi / 信号条形(主+副) / 电池 共 6 个 SVG
     assert html.count("<svg") >= 6
 
 
@@ -407,8 +437,18 @@ def test_emoji_message():
     assert 'emoji-text' in html
 
 
-def test_consecutive_messages_hide_avatar():
-    """✅ 同一发送者连续消息只显示一次头像。"""
+def test_resolve_upload_url_converts_relative_paths():
+    """✅ 相对上传路径补成 BASE_URL,绝对 URL / data URL 保持不变。"""
+    assert resolve_upload_url("/uploads/x.png") == f"{BASE_URL}/uploads/x.png"
+    assert resolve_upload_url("uploads/x.png") == f"{BASE_URL}/uploads/x.png"
+    assert resolve_upload_url("https://example.com/a.png") == "https://example.com/a.png"
+    assert resolve_upload_url("data:image/png;base64,abc") == "data:image/png;base64,abc"
+    assert resolve_upload_url(None) is None
+    assert resolve_upload_url("") == ""
+
+
+def test_consecutive_messages_show_avatar():
+    """✅ 同一发送者连续消息也显示头像。"""
     dsl = make_dsl(
         messages=[
             Message(sender_id="her", kind="text", text="第一条", delay_ms=1500),
@@ -416,9 +456,9 @@ def test_consecutive_messages_hide_avatar():
         ]
     )
     html = render_dsl(dsl)
-    # 第一条有头像,第二条通过 no-avatar 隐藏
+    # 两条消息都应有头像
     assert 'id="m1"' in html
     assert 'id="m2"' in html
-    assert html.count('<div class="avatar avatar-default">') == 1
-    # m2 应带 no-avatar 类
-    assert _has_class(html, "div", "m2", "no-avatar")
+    assert html.count('<div class="avatar avatar-default">') == 2
+    # m2 不应带 no-avatar 类
+    assert not _has_class(html, "div", "m2", "no-avatar")

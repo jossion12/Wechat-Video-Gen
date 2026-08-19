@@ -24,8 +24,8 @@ from app.models import (
 SCHEMA_VERSION = "1.0"
 
 
-def auto_duration(messages: list[Message], first_delay_ms: int = 1200) -> int:
-    """自动算总时长:第一条消息的时间戳间隔 + 各消息 delay 之和 + 前后 buffer。"""
+def auto_duration(messages: list[Message], first_delay_ms: int = 500) -> int:
+    """自动算总时长:第一条消息显示时间 + 各消息 delay 之和 + 结尾 buffer。"""
     base = first_delay_ms + sum(m.delay_ms for m in messages)
     return base + 1500
 
@@ -39,6 +39,7 @@ class ChatScene(BaseModel):
     background: str = "#ededed"
     background_image_url: str | None = None  # 整页背景图;有值时优先于 background 颜色
     duration_ms: int | None = None  # None = 自动算
+    opacity: float = 1.0  # 0-1,整个内容透明度,方便叠加到其他视频
     status_bar: StatusBar = Field(default_factory=StatusBar)
     member_count: int | None = None  # 群聊人数,如 221
     muted: bool = False  # 群聊免打扰铃铛
@@ -71,6 +72,13 @@ class ChatScene(BaseModel):
                 raise ValueError("duration_ms must be a positive integer")
             if v > MAX_DURATION_MS:
                 raise ValueError(f"duration_ms must be <= {MAX_DURATION_MS}")
+        return v
+
+    @field_validator("opacity")
+    @classmethod
+    def opacity_range(cls, v: float) -> float:
+        if v < 0 or v > 1:
+            raise ValueError("opacity must be between 0 and 1")
         return v
 
     @model_validator(mode="after")

@@ -121,8 +121,8 @@ wechat-video-gen/
 - 后续要加 iMessage / WhatsApp 风格:新增 `templates/messenger.html.j2` + `ChatConfig.template: Literal["wechat", "messenger"]`
 
 ### D6 · 文件上传直传后端
-- 上传走 `POST /api/upload`,后端写到 `storage/uploads/{uuid}.{ext}`
-- 返回 `{url: "/uploads/xxx.png"}`,前端存进 ChatConfig
+- 上传走 `POST /api/upload`,后端写到 `storage/users/{user_id}/sessions/{session_id}/uploads/{file_id}.{ext}`
+- 返回 `{url: "/api/files/{file_id}"}`,前端存进 ChatConfig
 - 不引对象存储,小规模够用;上线后可平滑迁移
 
 ## 1.5 与 `html-to-mp4` 主仓库的边界

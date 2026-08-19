@@ -30,7 +30,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 
 # 创建运行时目录(也可挂载 volume)
-RUN mkdir -p storage/uploads storage/outputs
+RUN mkdir -p storage
 ENV WORKER_COUNT=2 \
     PYTHONUNBUFFERED=1
 
@@ -67,6 +67,7 @@ services:
     environment:
       - WORKER_COUNT=2
       - LOG_LEVEL=info
+      # - BASE_URL=http://localhost:8000  # 上传资源转绝对 URL;部署到域名时修改
     restart: unless-stopped
 
   # 可选:用 nginx 服务前端静态文件
@@ -127,6 +128,7 @@ WorkingDirectory=/opt/wechat-video-gen/backend
 ExecStart=/opt/wechat-video-gen/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 Restart=always
 Environment=WORKER_COUNT=2
+Environment=BASE_URL=http://localhost:8000
 
 [Install]
 WantedBy=multi-user.target
@@ -240,5 +242,45 @@ logging.basicConfig(
 | `LOG_LEVEL` | info | 日志级别 |
 | `MAX_QUEUE_SIZE` | 100 | 队列上限,超过返回 503 |
 | `MAX_UPLOAD_SIZE` | 2097152 | 单文件 2MB |
-| `STORAGE_DIR` | `./storage` | 文件存储根 |
+| `STORAGE_DIR` | `./storage` | 文件存储根；DB 与分用户文件夹都在此目录下 |
 | `DEBUG` | false | 调试模式(写 preview.html 到 /tmp) |
+| `AUTH_REQUIRED` | `true` | 是否强制鉴权。**生产必须保持 `true`**；本地 dev / demo 可设 `false` 跳过鉴权(详见 §5.14) |
+| `ANONYMOUS_USER_ID` | `anonymous` | `AUTH_REQUIRED=false` 时所有匿名请求归属的 user_id |
+| `ANONYMOUS_USER_NAME` | `anonymous` | 同上的 username |
+
+## 5.13 多用户 / session 隔离
+
+后端不做鉴权逻辑(仅凭 header 取 user_id);生产应反向代理一层(OIDC / cookie)
+向 `X-User-Id` header 注入已验证的用户 ID，所有文件/产物仍落在
+`storage/users/{user_id}/sessions/{session_id}/{uploads|outputs}/` 下，跨用户物理隔离。
+
+SQLite 文件位置:`{STORAGE_DIR}/wechat-video-gen.db`(WAL 模式)。
+多副本部署时需迁移到集中式 DB(PostgreSQL/MySQL),可保持 `app/db.py` 的接口不变。
+
+## 5.14 AUTH_REQUIRED 鉴权开关
+
+| 环境 | 推荐设置 | 说明 |
+|---|---|---|
+| 生产 | `AUTH_REQUIRED=true` (默认) | 强制鉴权 — 没带 cookie / header → 401 |
+| 本地 dev | `AUTH_REQUIRED=false` | 跳过鉴权，所有请求归 `ANONYMOUS_USER_ID`（默认 `anonymous`） |
+| CI / demo | `AUTH_REQUIRED=false` | 同上 |
+
+设 `AUTH_REQUIRED=false` 启动时,日志会打:
+
+```
+WARNING auth: AUTH_REQUIRED=false: running in LOCAL DEV mode with user 'anonymous'.
+        All requests are anonymous — NO user isolation. Do NOT use in production.
+```
+
+**不要在生产设 false。**即使已有反向代理层挡鉴权，也应保留后端二次校验作为 defense in depth。
+
+设置示例：
+
+```bash
+# 生产
+docker run -e AUTH_REQUIRED=true ... wechat-video-gen
+
+# 本地开发
+export AUTH_REQUIRED=false
+uvicorn app.main:app --reload
+```

@@ -15,6 +15,7 @@ export function validateConfig(config: ChatScene): string | null {
   if (!config.title || config.title.trim() === '') {
     return '聊天标题不能为空';
   }
+  const participantIds = new Set(config.participants.map((p) => p.id));
   for (const m of config.messages) {
     if (m.kind === 'sys' || m.kind === 'text') {
       if (!m.text || m.text.trim() === '') {
@@ -22,6 +23,14 @@ export function validateConfig(config: ChatScene): string | null {
       }
     } else if (m.kind === 'image' && !m.image_url) {
       return '图片消息需要上传图片';
+    }
+    // 非系统/时间戳消息的发送者必须对应一个真实参与者,否则后端会 422
+    if (
+      m.kind !== 'sys' &&
+      m.kind !== 'timestamp' &&
+      !participantIds.has(m.sender_id)
+    ) {
+      return '消息发送者必须是已添加的参与者';
     }
     if (m.delay_ms < 100 || m.delay_ms > 60000) {
       return '消息间隔需在 100–60000ms 之间';
