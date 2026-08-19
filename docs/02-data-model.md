@@ -11,11 +11,14 @@ class StatusBar(BaseModel):
     battery_level: int = 100
     network_speed: str | None = None      # e.g. "3.5 K/s"
     signal_type: str | None = None        # e.g. "5A", "5G", "4G"
+    signal_type_secondary: str | None = None  # e.g. "5G", dual_sim 时显示
     dual_sim: bool = False
+    show_wifi: bool = True
+    show_signal: bool = True
     show_bluetooth: bool = False
     show_alarm: bool = False
     show_nfc: bool = False
-    app_icons: list[str] = []             # 左侧应用图标,最多 3 个
+    app_icons: list[str] = []             # 左侧应用图标,最多 3 个;URL 则显示图片
 ```
 
 | 字段 | 类型 | 必填 | 默认 | 说明 |
@@ -23,8 +26,11 @@ class StatusBar(BaseModel):
 | `time` | string | ✗ | `12:34` | 左上角时间 |
 | `battery_level` | int | ✗ | `100` | 电量百分比,0-100 |
 | `network_speed` | string 或 null | ✗ | `null` | 网速,如 `3.5 K/s`、`300 B/s` |
-| `signal_type` | string 或 null | ✗ | `null` | 信号类型,如 `5A`、`5G` |
+| `signal_type` | string 或 null | ✗ | `null` | 主卡信号类型,如 `5A`、`5G` |
+| `signal_type_secondary` | string 或 null | ✗ | `null` | 副卡信号类型,`dual_sim=true` 时显示,如 `5G` |
 | `dual_sim` | bool | ✗ | `false` | 是否显示双卡(右侧会出现两个信号类型) |
+| `show_wifi` | bool | ✗ | `true` | WiFi 图标 |
+| `show_signal` | bool | ✗ | `true` | 信号条图标 |
 | `show_bluetooth` | bool | ✗ | `false` | 蓝牙图标 |
 | `show_alarm` | bool | ✗ | `false` | 闹钟图标 |
 | `show_nfc` | bool | ✗ | `false` | NFC 图标 |
@@ -161,6 +167,7 @@ class Job(BaseModel):
     "battery_level": 61,
     "network_speed": "300 B/s",
     "signal_type": "5A",
+    "signal_type_secondary": "5G",
     "dual_sim": true,
     "show_bluetooth": true,
     "show_alarm": true,

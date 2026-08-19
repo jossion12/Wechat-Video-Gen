@@ -11,9 +11,15 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     let detail = `请求失败（HTTP ${res.status}）`;
     try {
-      const body = (await res.json()) as { detail?: string };
+      const body = (await res.json()) as { detail?: unknown };
       if (typeof body.detail === 'string' && body.detail) {
         detail = body.detail;
+      } else if (Array.isArray(body.detail)) {
+        // FastAPI 422:取第一条校验错误信息,去掉 pydantic 前缀
+        const first = body.detail[0] as { msg?: string } | undefined;
+        if (first && typeof first.msg === 'string') {
+          detail = first.msg.replace(/^Value error,\s*/i, '');
+        }
       }
     } catch {
       // ignore non-JSON error bodies

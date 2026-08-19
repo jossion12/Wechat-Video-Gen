@@ -155,6 +155,31 @@ body {
   accent-color: var(--wechat-green);
 }
 
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
+}
+
+.checkbox-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  background: #fafafa;
+  font-size: 13px;
+}
+
+.checkbox-option input {
+  margin: 0;
+  accent-color: var(--wechat-green);
+}
+
 input[type='text'],
 input[type='number'],
 select,

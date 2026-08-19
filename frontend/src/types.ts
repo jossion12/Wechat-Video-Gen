@@ -7,7 +7,10 @@ export interface StatusBar {
   battery_level: number; // 0-100, default 100
   network_speed: string | null; // e.g. '3.5 K/s', '300 B/s'
   signal_type: string | null; // e.g. '5A', '5G', '4G'
+  signal_type_secondary: string | null; // e.g. '5G', used when dual_sim is true
   dual_sim: boolean;
+  show_wifi: boolean; // default true
+  show_signal: boolean; // default true
   show_bluetooth: boolean;
   show_alarm: boolean;
   show_nfc: boolean;

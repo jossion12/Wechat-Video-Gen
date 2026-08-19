@@ -30,7 +30,7 @@ export function ParticipantList({ participants, mode, onChange }: ParticipantLis
 
   const addParticipant = () => {
     const id = nextParticipantId(participants);
-    onChange([...participants, { id, name: '', avatar_url: null }]);
+    onChange([...participants, { id, name: '', avatar_url: null, label: null }]);
   };
 
   return (

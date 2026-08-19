@@ -26,7 +26,10 @@ class StatusBar(BaseModel):
     battery_level: int = 100
     network_speed: str | None = None  # e.g. "3.5 K/s", "300 B/s"
     signal_type: str | None = None  # e.g. "5A", "5G", "4G"
+    signal_type_secondary: str | None = None  # e.g. "5G", used when dual_sim is true
     dual_sim: bool = False
+    show_wifi: bool = True
+    show_signal: bool = True
     show_bluetooth: bool = False
     show_alarm: bool = False
     show_nfc: bool = False

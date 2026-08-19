@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react';
 import { submitRender } from './api';
 import type { ChatConfig, Message, Participant } from './types';
+import { validateConfig } from './validate';
 import { HeaderEditor } from './components/HeaderEditor';
+import { StatusBarEditor } from './components/StatusBarEditor';
 import { ParticipantList } from './components/ParticipantList';
 import { MessageList } from './components/MessageList';
 import { PreviewPanel } from './components/PreviewPanel';
@@ -13,31 +15,29 @@ function createDefaultConfig(): ChatConfig {
   return {
     mode: 'group',
     title: '群聊',
+    subtitle: null,
     background: '#ededed',
     background_image_url: null,
     duration_ms: null,
+    status_bar: {
+      time: '12:34',
+      battery_level: 100,
+      network_speed: null,
+      signal_type: null,
+      signal_type_secondary: null,
+      dual_sim: false,
+      show_wifi: true,
+      show_signal: true,
+      show_bluetooth: false,
+      show_alarm: false,
+      show_nfc: false,
+      app_icons: [],
+    },
+    member_count: null,
+    muted: false,
     participants: [],
     messages: [],
   };
-}
-
-function validateConfig(config: ChatConfig): string | null {
-  if (config.participants.length < 2) {
-    return '至少需要 2 名参与者';
-  }
-  if (config.messages.length < 1) {
-    return '至少需要 1 条消息';
-  }
-  for (const m of config.messages) {
-    if (m.kind === 'sys' || m.kind === 'text') {
-      if (!m.text || m.text.trim() === '') {
-        return m.kind === 'sys' ? '系统消息需要填写文本内容' : '文字消息需要填写文本内容';
-      }
-    } else if (m.kind === 'image' && !m.image_url) {
-      return '图片消息需要上传图片';
-    }
-  }
-  return null;
 }
 
 export default function App() {
@@ -54,6 +54,16 @@ export default function App() {
       background_image_url?: string | null;
     }) => {
       setConfig((prev) => ({ ...prev, ...patch }));
+    },
+    [],
+  );
+
+  const updateStatusBar = useCallback(
+    (patch: Partial<ChatConfig['status_bar']>) => {
+      setConfig((prev) => ({
+        ...prev,
+        status_bar: { ...prev.status_bar, ...patch },
+      }));
     },
     [],
   );
@@ -106,6 +116,7 @@ export default function App() {
             backgroundImage={config.background_image_url}
             onChange={updateHeader}
           />
+          <StatusBarEditor statusBar={config.status_bar} onChange={updateStatusBar} />
           <ParticipantList
             participants={config.participants}
             mode={config.mode}

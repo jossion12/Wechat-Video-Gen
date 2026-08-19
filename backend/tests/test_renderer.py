@@ -288,6 +288,8 @@ def test_status_bar_rendered():
             network_speed="3.5 K/s",
             signal_type="5A",
             dual_sim=True,
+            show_wifi=True,
+            show_signal=True,
             show_bluetooth=True,
             show_alarm=True,
             show_nfc=True,
@@ -298,10 +300,10 @@ def test_status_bar_rendered():
     assert "00:00" in html
     assert "3.5 K/s" in html
     assert "5A" in html
-    assert 'width: 61%;' in html
-    assert "icon-bluetooth" in html
-    assert "icon-alarm" in html
-    assert "icon-nfc" in html
+    # 电池电量填充宽度按 30px 槽宽计算: 61% -> 18px
+    assert 'width="18"' in html
+    # NFC / 闹钟 / 蓝牙 / WiFi / 信号 / 电池 共 6 个 SVG 图标
+    assert html.count("<svg") >= 6
 
 
 def test_single_subtitle_rendered():

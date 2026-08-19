@@ -40,14 +40,32 @@ export function MessageList({ participants, messages, onChange }: MessageListPro
       // 还没有参与者时,先默认新增一条系统消息(不依赖 sender_id)
       onChange([
         ...messages,
-        { sender_id: SYSTEM_ID, kind: 'sys', text: '', image_url: null, delay_ms: 1500 },
+        {
+          sender_id: SYSTEM_ID,
+          kind: 'sys',
+          text: '',
+          image_url: null,
+          video_url: null,
+          cover_url: null,
+          duration: null,
+          delay_ms: 1500,
+        },
       ]);
       return;
     }
     const sender = participants[0].id;
     onChange([
       ...messages,
-      { sender_id: sender, kind: 'text', text: '', image_url: null, delay_ms: 1500 },
+      {
+        sender_id: sender,
+        kind: 'text',
+        text: '',
+        image_url: null,
+        video_url: null,
+        cover_url: null,
+        duration: null,
+        delay_ms: 1500,
+      },
     ]);
   };
 
