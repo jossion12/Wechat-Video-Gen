@@ -52,9 +52,11 @@ def _make_dsl() -> VideoDSL:
     return VideoDSL(
         scene=ChatScene(
             mode="single",
+            intent="short_video_drama",
+            intent_acknowledged=True,
             participants=[
-                Participant(id="me", name="我"),
-                Participant(id="her", name="她"),
+                Participant(id="me", name="我", persona=""),
+                Participant(id="her", name="她", persona=""),
             ],
             messages=[
                 Message(sender_id="me", kind="text", text="hi", delay_ms=1500),
@@ -119,6 +121,27 @@ def test_preview_html_renders_for_owned_session(client, user_storage):
     assert r.status_code == 200
     body = r.json()
     assert body["html"].strip().startswith("<!DOCTYPE html>")
+
+
+def test_preview_html_accepts_reply_to(client, user_storage):
+    """第二条消息 reply_to=1 时，后端校验通过并渲染出引用块。"""
+    r = client.post("/api/sessions", headers=_h("alice"))
+    sid = r.json()["id"]
+    dsl = _make_dsl()
+    dsl.scene.messages = [
+        Message(sender_id="me", kind="text", text="你好", delay_ms=1500),
+        Message(sender_id="her", kind="text", text="回复你", delay_ms=1500, reply_to=1),
+    ]
+    r = client.post(
+        "/api/preview-html",
+        headers=_h("alice"),
+        json={"dsl": dsl.model_dump(mode="json"), "session_id": sid},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["html"].strip().startswith("<!DOCTYPE html>")
+    assert 'class="reply-quote"' in body["html"]
+    assert "回复你" in body["html"]
 
 
 # ---------- DELETE /api/sessions 原子 (P0-2) ----------

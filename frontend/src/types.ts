@@ -2,25 +2,42 @@ export type Mode = 'single' | 'group';
 export type MessageKind = 'text' | 'image' | 'sys' | 'timestamp' | 'video' | 'emoji';
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
 export type VideoKind = 'chat';
-export type VideoTemplate = 'wechat';
+export type VideoTemplate = 'cyberpunk' | 'watercolor' | 'pixel' | 'comic';
+export type StyleTheme = VideoTemplate;
+export type Intent =
+  | 'short_video_drama'
+  | 'story_visualization'
+  | 'teaching_simulation'
+  | 'meme_sticker';
+export type AIBadgeStyle = 'neon' | 'minimal' | 'retro';
 
-export interface StatusBar {
-  time: string; // default '12:34'
-  battery_level: number; // 0-100, default 61
-  signal_type: '5G' | '4G' | null;
-  signal_type_secondary: '5G' | '4G' | null;
-  dual_sim: boolean;
-  show_wifi: boolean; // default true
-  show_signal: boolean; // default true
-  show_bluetooth: boolean;
-  show_alarm: boolean;
-}
+export const INTENT_LABELS: Record<Intent, string> = {
+  short_video_drama: '短视频剧情创作',
+  story_visualization: '情感故事 / 小说可视化',
+  teaching_simulation: '教学演示 / 情景模拟',
+  meme_sticker: '表情包 / 梗图制作',
+};
+
+export const STYLE_THEME_LABELS: Record<StyleTheme, string> = {
+  cyberpunk: '赛博朋克',
+  watercolor: '手绘',
+  pixel: '复古',
+  comic: '漫画',
+};
+
+/** 各主题首次启用时的推荐背景色。 */
+export const THEME_DEFAULT_BACKGROUND: Record<StyleTheme, string> = {
+  cyberpunk: '#0a0a12',
+  watercolor: '#f7f4ed',
+  pixel: '#051005',
+  comic: '#ffffff',
+};
 
 export interface Participant {
   id: string; // unique within config, e.g. 'me', 'alice', 'bob'
   name: string; // display name, ≤16 chars
   avatar_url: string | null; // '/uploads/xxx.png' or null
-  label: string | null; // subtitle in single chat / enterprise tag in group chat
+  persona: string | null; // character profile / personality tags
 }
 
 export interface Message {
@@ -33,25 +50,25 @@ export interface Message {
   duration: string | null; // e.g. '0:10' for video
   delay_ms: number; // default 1500
   align: 'left' | 'right' | null; // null = 按旧规则自动推断
+  reply_to: number | null; // 回复目标的 1-based 序号;null 表示普通消息
 }
 
 export interface WatermarkConfig {
-  enabled: boolean; // default true
-  text: string; // supports {date} placeholder, rendered as YYYY-MM-DD
+  text: string; // fixed AI generation notice, user cannot edit
+  badge_style: AIBadgeStyle; // visual style only, cannot disable
 }
 
-/** 聊天场景配置。 */
+/** 对话剧场场景配置。 */
 export interface ChatScene {
   mode: Mode; // default 'group'
-  title: string; // default '群聊'
-  subtitle: string | null; // shown below title in single chat
-  background: string; // default '#ededed'
-  background_image_url: string | null; // '/uploads/xxx.png' or null; 有值时优先于 background
+  title: string; // default '对话剧场'
+  background: string; // default '#ffffff'
+  background_image_url: string | null; // '/uploads/xxx.png' or null
   duration_ms: number | null; // null = auto
   opacity: number; // 0-1, default 1
-  status_bar: StatusBar;
-  member_count: number | null; // group member count, e.g. 221
-  muted: boolean; // show mute bell in group header
+  style_theme: StyleTheme;
+  intent: Intent;
+  intent_acknowledged: boolean; // must agree to compliance terms
   participants: Participant[]; // at least 2
   messages: Message[]; // at least 1, ≤30
   watermark: WatermarkConfig;
@@ -61,7 +78,7 @@ export interface ChatScene {
 export interface VideoDSL {
   schema_version: '1.0';
   kind: VideoKind;
-  template: VideoTemplate;
+  template: VideoTemplate; // 'cyberpunk'
   scene: ChatScene;
 }
 

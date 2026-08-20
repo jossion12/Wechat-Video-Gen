@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import type { ChatScene, Message, Participant } from '../types';
+import type { ChatScene, Message, Participant, StyleTheme } from '../types';
 
 interface StaticPreviewProps {
   step: 1 | 2 | 3 | 4;
@@ -35,120 +35,38 @@ function findParticipant(id: string, participants: Participant[]): Participant |
   return participants.find((p) => p.id === id);
 }
 
+function themeClass(base: string, theme: StyleTheme): string {
+  return `${base} ${base}--${theme}`;
+}
+
 function Avatar({
   participant,
   fallbackId,
-  small = false,
+  theme,
 }: {
   participant?: Participant;
   fallbackId: string;
-  small?: boolean;
+  theme: StyleTheme;
 }) {
   const id = participant?.id || fallbackId;
   const name = participant?.name || '';
   const url = participant?.avatar_url;
   return (
-    <div
-      className={`sp-avatar${small ? ' sp-avatar--small' : ''}`}
-      style={{ backgroundColor: stringToColor(id) }}
-    >
+    <div className={themeClass('sp-avatar', theme)} style={{ backgroundColor: stringToColor(id) }}>
       {url ? <img src={url} alt={name || id} /> : <span>{getInitial(name, id)}</span>}
     </div>
   );
 }
 
-/** 根据电池百分比 0-100 挑出对应 fluentui Battery 图标 (1~10 档)。 */
-function batteryIconSrc(level: number): string {
-  const idx = Math.max(0, Math.min(10, Math.round(level / 10)));
-  return `/icons/status-bar/battery-${idx}.svg`;
-}
-
-function StatusBarPreview({
-  statusBar,
-  emphasized = false,
-}: {
-  statusBar: ChatScene['status_bar'];
-  emphasized?: boolean;
-}) {
+function ChatHeader({ scene, theme }: { scene: ChatScene; theme: StyleTheme }) {
   return (
-    <div className={`sp-status-bar${emphasized ? ' sp-status-bar--emphasized' : ''}`}>
-      <div className="sp-status-left">
-        <span className="sp-status-time">{statusBar.time}</span>
-      </div>
-      <div className="sp-status-right">
-        {statusBar.show_alarm && (
-          <img className="sp-icon sp-icon-24" src="/icons/status-bar/alarm-24.svg" alt="alarm" />
-        )}
-        {statusBar.show_bluetooth && (
-          <img className="sp-icon sp-icon-bt" src="/icons/status-bar/bluetooth-24.svg" alt="bluetooth" />
-        )}
-        {statusBar.show_wifi && (
-          <img className="sp-icon sp-icon-wifi" src="/icons/status-bar/wifi-24.svg" alt="wifi" />
-        )}
-        {statusBar.show_signal && (
-          <div className="sp-signal">
-            {statusBar.signal_type && (
-              <span className="sp-signal-type">{statusBar.signal_type}</span>
-            )}
-            <div className="sp-signal-bars">
-              <span style={{ height: 6 }} />
-              <span style={{ height: 8 }} />
-              <span style={{ height: 10 }} />
-              <span style={{ height: 12 }} />
-            </div>
-          </div>
-        )}
-        {statusBar.dual_sim && statusBar.signal_type_secondary && (
-          <div className="sp-signal sp-signal--sub">
-            <span className="sp-signal-type">{statusBar.signal_type_secondary}</span>
-            <div className="sp-signal-bars">
-              <span style={{ height: 6 }} />
-              <span style={{ height: 8 }} />
-              <span style={{ height: 10 }} />
-              <span style={{ height: 12 }} />
-            </div>
-          </div>
-        )}
-        <div className="sp-battery">
-          <span className="sp-battery-wrap">
-            <img
-              className="sp-icon sp-icon-battery"
-              src={batteryIconSrc(statusBar.battery_level)}
-              alt="battery"
-            />
-          </span>
-        </div>
-      </div>
+    <div className={themeClass('sp-header', theme)}>
+      <div className="sp-header-title">{scene.title}</div>
     </div>
   );
 }
 
-function ChatHeader({ scene, showSubtitle = false }: { scene: ChatScene; showSubtitle?: boolean }) {
-  const countText = scene.mode === 'group' && scene.participants.length > 0
-    ? `(${scene.participants.length})`
-    : '';
-  return (
-    <div className="sp-header">
-      <div className="sp-header-left">
-        <span className="sp-header-mode">{scene.mode === 'single' ? '单聊' : '群聊'}</span>
-        {countText && <span className="sp-header-count">{countText}</span>}
-      </div>
-      <div className="sp-header-center">
-        <div className="sp-header-title">{scene.title}</div>
-        {showSubtitle && scene.subtitle && (
-          <div className="sp-header-subtitle">{scene.subtitle}</div>
-        )}
-      </div>
-      <div className="sp-header-right">
-        <span className="sp-header-dot" />
-        <span className="sp-header-dot" />
-        <span className="sp-header-dot" />
-      </div>
-    </div>
-  );
-}
-
-function ChatContent({ scene, children }: { scene: ChatScene; children: ReactNode }) {
+function ChatContent({ scene, theme, children }: { scene: ChatScene; theme: StyleTheme; children: ReactNode }) {
   const style: CSSProperties = {
     backgroundColor: scene.background,
     backgroundImage: scene.background_image_url ? `url(${scene.background_image_url})` : undefined,
@@ -156,58 +74,52 @@ function ChatContent({ scene, children }: { scene: ChatScene; children: ReactNod
     backgroundPosition: 'center',
   };
   return (
-    <div className="sp-content" style={style}>
+    <div className={themeClass('sp-content', theme)} style={style}>
       {children}
     </div>
   );
 }
 
-function MessageSkeletons() {
+function MessageSkeletons({ theme }: { theme: StyleTheme }) {
   return (
     <div className="sp-skeleton-list">
       <div className="sp-skeleton-row sp-skeleton-row--left">
-        <div className="sp-skeleton-bubble" style={{ width: 140 }} />
+        <div className={`sp-skeleton-bubble sp-skeleton-bubble--${theme}`} style={{ width: 140 }} />
       </div>
       <div className="sp-skeleton-row sp-skeleton-row--right">
-        <div className="sp-skeleton-bubble" style={{ width: 120 }} />
+        <div className={`sp-skeleton-bubble sp-skeleton-bubble--${theme}`} style={{ width: 120 }} />
       </div>
       <div className="sp-skeleton-row sp-skeleton-row--left">
-        <div className="sp-skeleton-bubble" style={{ width: 180 }} />
-      </div>
-      <div className="sp-skeleton-row sp-skeleton-row--left">
-        <div className="sp-skeleton-bubble" style={{ width: 100 }} />
-      </div>
-      <div className="sp-skeleton-row sp-skeleton-row--right">
-        <div className="sp-skeleton-bubble" style={{ width: 150 }} />
+        <div className={`sp-skeleton-bubble sp-skeleton-bubble--${theme}`} style={{ width: 180 }} />
       </div>
     </div>
   );
 }
 
-function ParticipantSkeletons() {
+function ParticipantSkeletons({ theme }: { theme: StyleTheme }) {
   return (
     <div className="sp-participant-row">
       {[1, 2, 3].map((i) => (
         <div key={i} className="sp-participant-chip">
-          <div className="sp-avatar" style={{ background: '#d1d5db' }}>
+          <div className={themeClass('sp-avatar', theme)} style={{ background: '#33334d' }}>
             <span>{String.fromCharCode(64 + i)}</span>
           </div>
-          <span className="sp-participant-name">参与者 {i}</span>
+          <span className="sp-participant-name">角色 {i}</span>
         </div>
       ))}
     </div>
   );
 }
 
-function ParticipantAvatarRow({ participants }: { participants: Participant[] }) {
+function ParticipantAvatarRow({ participants, theme }: { participants: Participant[]; theme: StyleTheme }) {
   if (participants.length === 0) {
-    return <ParticipantSkeletons />;
+    return <ParticipantSkeletons theme={theme} />;
   }
   return (
     <div className="sp-participant-row">
       {participants.map((p) => (
         <div key={p.id} className="sp-participant-chip">
-          <Avatar participant={p} fallbackId={p.id} />
+          <Avatar participant={p} fallbackId={p.id} theme={theme} />
           <span className="sp-participant-name">{p.name || p.id}</span>
         </div>
       ))}
@@ -219,22 +131,24 @@ function MessageListPreview({
   messages,
   participants,
   mode,
+  theme,
 }: {
   messages: Message[];
   participants: Participant[];
   mode: ChatScene['mode'];
+  theme: StyleTheme;
 }) {
   const visible = messages.slice(0, 8);
   if (visible.length === 0) {
-    return <MessageSkeletons />;
+    return <MessageSkeletons theme={theme} />;
   }
   return (
     <div className="sp-message-list">
       {visible.map((m, i) => {
         if (m.kind === 'sys' || m.kind === 'timestamp') {
           return (
-            <div key={i} className="sp-message sp-message--system">
-              <span>{m.text || (m.kind === 'sys' ? '系统消息' : '时间戳')}</span>
+            <div key={i} className={`sp-message sp-message--system sp-message--system-${theme}`}>
+              <span>{m.text || (m.kind === 'sys' ? '幕间字幕' : '时间戳')}</span>
             </div>
           );
         }
@@ -242,8 +156,8 @@ function MessageListPreview({
         const right = isRightSide(m, participants, mode);
         return (
           <div key={i} className={`sp-message${right ? ' sp-message--me' : ''}`}>
-            <Avatar participant={sender} fallbackId={m.sender_id} small />
-            <div className="sp-bubble">
+            <Avatar participant={sender} fallbackId={m.sender_id} theme={theme} />
+            <div className={`sp-bubble sp-bubble--${theme}${right ? ' sp-bubble--me' : ' sp-bubble--other'}`}>
               {m.kind === 'text' && <span>{m.text || ' '}</span>}
               {m.kind === 'image' && <span className="sp-bubble-media">图片</span>}
               {m.kind === 'video' && <span className="sp-bubble-media">▶ 视频</span>}
@@ -256,60 +170,33 @@ function MessageListPreview({
   );
 }
 
-function Step1Preview({ scene }: { scene: ChatScene }) {
+function StepPreview({ scene, theme, showParticipants = false, showMessages = false }: {
+  scene: ChatScene;
+  theme: StyleTheme;
+  showParticipants?: boolean;
+  showMessages?: boolean;
+}) {
   return (
     <>
-      <StatusBarPreview statusBar={scene.status_bar} />
-      <ChatHeader scene={scene} />
-      <ChatContent scene={scene}>
-        <MessageSkeletons />
-      </ChatContent>
-    </>
-  );
-}
-
-function Step2Preview({ scene }: { scene: ChatScene }) {
-  return (
-    <>
-      <StatusBarPreview statusBar={scene.status_bar} emphasized />
-      <ChatHeader scene={scene} />
-      <ChatContent scene={scene}>
-        <MessageSkeletons />
-      </ChatContent>
-    </>
-  );
-}
-
-function Step3Preview({ scene }: { scene: ChatScene }) {
-  return (
-    <>
-      <StatusBarPreview statusBar={scene.status_bar} />
-      <ChatHeader scene={scene} showSubtitle={scene.mode === 'single'} />
-      <ChatContent scene={scene}>
-        <ParticipantAvatarRow participants={scene.participants} />
-        <MessageSkeletons />
-      </ChatContent>
-    </>
-  );
-}
-
-function Step4Preview({ scene }: { scene: ChatScene }) {
-  return (
-    <>
-      <StatusBarPreview statusBar={scene.status_bar} />
-      <ChatHeader scene={scene} />
-      <ChatContent scene={scene}>
-        <MessageListPreview messages={scene.messages} participants={scene.participants} mode={scene.mode} />
+      <ChatHeader scene={scene} theme={theme} />
+      <ChatContent scene={scene} theme={theme}>
+        {showParticipants && <ParticipantAvatarRow participants={scene.participants} theme={theme} />}
+        {showMessages ? (
+          <MessageListPreview messages={scene.messages} participants={scene.participants} mode={scene.mode} theme={theme} />
+        ) : (
+          <MessageSkeletons theme={theme} />
+        )}
       </ChatContent>
     </>
   );
 }
 
 /**
- * 纯前端静态预览：步骤 1~4 直接 React 渲染微信聊天局部界面，
+ * 纯前端静态预览：步骤 1~4 直接 React 渲染对话剧场局部界面，
  * 不调用后端 previewHtml，也不使用 iframe。
  */
 export function StaticPreview({ step, scene }: StaticPreviewProps) {
+  const theme = scene.style_theme;
   const style: CSSProperties = { opacity: scene.opacity };
   return (
     <section className="card preview-card">
@@ -317,11 +204,11 @@ export function StaticPreview({ step, scene }: StaticPreviewProps) {
         <h2 className="card-title">预览</h2>
       </div>
       <div className="phone-frame">
-        <div className="static-preview" style={style}>
-          {step === 1 && <Step1Preview scene={scene} />}
-          {step === 2 && <Step2Preview scene={scene} />}
-          {step === 3 && <Step3Preview scene={scene} />}
-          {step === 4 && <Step4Preview scene={scene} />}
+        <div className={`static-preview static-preview--${theme}`} style={style}>
+          {step === 1 && <StepPreview scene={scene} theme={theme} />}
+          {step === 2 && <StepPreview scene={scene} theme={theme} />}
+          {step === 3 && <StepPreview scene={scene} theme={theme} showParticipants />}
+          {step === 4 && <StepPreview scene={scene} theme={theme} showMessages />}
         </div>
       </div>
     </section>

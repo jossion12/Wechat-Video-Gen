@@ -1,7 +1,7 @@
 """SQLite 数据访问层 — 用户 / session / 文件 / 任务 全在库里。
 
 设计目标:
-- 单文件 SQLite,放 STORAGE_DIR 下的 wechat-video-gen.db,WAL 模式避免锁竞争。
+- 单文件 SQLite,放 STORAGE_DIR 下的 dialogue-theater.db,WAL 模式避免锁竞争。
 - 所有表的主键都是 26 位 ulid-like(实际用 uuid4().hex,26 字符的子串)便于 URL 用。
 - 每个写操作是同步 sqlite3 调用;从 async 代码调用时通过 asyncio.to_thread() 包装。
 - 不引第三方 ORM,直接用 sqlite3,避免依赖膨胀。
@@ -24,7 +24,7 @@ from app.storage import STORAGE_DIR
 
 logger = logging.getLogger("db")
 
-DB_PATH = STORAGE_DIR / "wechat-video-gen.db"
+DB_PATH = STORAGE_DIR / "dialogue-theater.db"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # 全局写锁 — sqlite3 单进程串行写没问题,但跨线程并发写会卡;

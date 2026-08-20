@@ -13,51 +13,64 @@ if TYPE_CHECKING:
 SYSTEM_SENDER_ID = "__system__"
 
 MAX_PARTICIPANT_NAME = 16
-MAX_PARTICIPANT_LABEL = 24
+MAX_PARTICIPANT_PERSONA = 200
 MAX_MESSAGE_TEXT = 500
 MAX_MESSAGES = 30
 MIN_PARTICIPANTS = 2
 FIRST_MESSAGE_MIN_DELAY_MS = 500
 MAX_DURATION_MS = 300_000  # 5 分钟上限,防止误配超长任务
 
+# ---------- 合规相关常量 ----------
 
-class StatusBar(BaseModel):
-    """顶部状态栏。"""
+AI_GENERATION_NOTICE = "本内容由 AI 生成 · 仅供创意表达"
+DISCLAIMER_CARD_TEXT = "本对话由 AI 生成，仅供创意表达"
 
-    # 默认值与前端 DEFAULT_STATUS_BAR 保持一致(参考 iOS 状态栏全量展示)
-    time: str = "12:34"
-    battery_level: int = 61
-    signal_type: Literal["5G", "4G"] | None = "5G"
-    signal_type_secondary: Literal["5G", "4G"] | None = "5G"
-    dual_sim: bool = True
-    show_wifi: bool = True
-    show_signal: bool = True
-    show_bluetooth: bool = True
-    show_alarm: bool = True
+ALLOWED_INTENTS = [
+    "short_video_drama",      # 短视频剧情创作
+    "story_visualization",    # 情感故事 / 小说可视化
+    "teaching_simulation",    # 教学演示 / 情景模拟
+    "meme_sticker",           # 表情包 / 梗图制作
+]
 
-    @field_validator("time")
-    @classmethod
-    def time_not_empty(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("status_bar.time must not be empty")
-        return v
+INTENT_LABELS = {
+    "short_video_drama": "短视频剧情创作",
+    "story_visualization": "情感故事 / 小说可视化",
+    "teaching_simulation": "教学演示 / 情景模拟",
+    "meme_sticker": "表情包 / 梗图制作",
+}
 
-    @field_validator("battery_level")
-    @classmethod
-    def battery_range(cls, v: int) -> int:
-        if v < 0 or v > 100:
-            raise ValueError("status_bar.battery_level must be 0-100")
-        return v
+# 高敏感词:命中后渲染请求被拒绝
+HIGH_RISK_WORDS = [
+    "转账", "红包", "密码", "验证码", "银行卡", "汇款", "借款",
+    "信用卡", "借记卡", "账户余额", "支付密码", "登录密码",
+]
+
+# 真实社交平台名称:命中后提示不要模仿真实平台
+PLATFORM_NAMES = [
+    "微信", "WeChat", "WhatsApp", "腾讯", "Tencent", "Meta", "Facebook",
+    "Messenger", "Line", "Telegram", "钉钉", "飞书", "Slack",
+]
+
+# 角标样式(仅视觉,不可关闭)
+AI_BADGE_STYLES = ["neon", "minimal", "retro"]
+
+# 视觉风格模板
+STYLE_THEMES = ["cyberpunk", "watercolor", "pixel", "comic"]
+STYLE_THEME_LABELS = {
+    "cyberpunk": "赛博朋克",
+    "watercolor": "手绘",
+    "pixel": "复古",
+    "comic": "漫画",
+}
 
 
 class Participant(BaseModel):
-    """聊天参与者。"""
+    """聊天参与者(对话剧场中的角色)。"""
 
     id: str
     name: str = Field(max_length=MAX_PARTICIPANT_NAME)
     avatar_url: str | None = None
-    label: str | None = None  # 单聊副标题 / 群聊企业标签
+    persona: str | None = None  # 角色设定 / 性格标签(MVE 仅存储)
 
     @field_validator("id")
     @classmethod
@@ -80,6 +93,14 @@ class Message(BaseModel):
     duration: str | None = None  # 视频/语音时长,如 "0:10"
     delay_ms: int = 1500
     align: Literal["left", "right"] | None = None  # 显式指定消息方向;None 时按旧规则推断
+    reply_to: int | None = None  # 回复目标的 1-based 序号;None 表示普通消息
+
+    @field_validator("reply_to")
+    @classmethod
+    def reply_to_positive(cls, v: int | None) -> int | None:
+        if v is not None and v < 1:
+            raise ValueError("reply_to must be >= 1")
+        return v
 
     @field_validator("text")
     @classmethod
@@ -143,25 +164,20 @@ class JobStatus(BaseModel):
 # ---------- 多用户 / session 相关(新增) ----------
 
 class WatermarkConfig(BaseModel):
-    """视频水印配置。"""
+    """AI 生成标识配置 —— 不可关闭,仅可切换角标视觉样式。"""
 
-    enabled: bool = True
-    text: str = "@AI生成 {date}"  # 支持 {date} 占位符,渲染时替换为当天日期
+    text: str = AI_GENERATION_NOTICE
+    badge_style: Literal["neon", "minimal", "retro"] = "neon"
 
 
 class UserInfo(BaseModel):
-    """当前用户信息。"""
+    """当前用户信息。MVE 阶段保留 registered_at / paid_at 字段但不再用于去水印。"""
 
     id: str
     username: str
     created_at: float
     registered_at: float | None = None
     paid_at: float | None = None
-
-    @property
-    def can_remove_float_watermark(self) -> bool:
-        """注册或充值后可去除飘动水印,但右下角仍保留 AI 生成水印。"""
-        return self.registered_at is not None or self.paid_at is not None
 
 
 class SessionInfo(BaseModel):

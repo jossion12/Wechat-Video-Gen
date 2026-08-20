@@ -17,6 +17,7 @@
 | GET | `/api/sessions/{id}` | ✓ | session 详情(含文件 + 任务) |
 | DELETE | `/api/sessions/{id}` | ✓ | 删 session + 物理清理文件/产物 |
 | POST | `/api/upload` | ✓ | 上传头像/图片(必带 `session_id`) |
+| POST | `/api/import` | ✓ | 导入 zip(DSL + 图片素材)到当前 session |
 | POST | `/api/preview-html` | ✓ | 接收 DSL + session_id,返回 HTML |
 | POST | `/api/render` | ✓ | 接收 DSL + session_id,入队,返回 job_id |
 | GET | `/api/jobs/{id}` | ✓ | 任务状态(所有权校验) |
@@ -168,3 +169,84 @@ allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localho
 ## 3.16 OpenAPI
 
 `/docs`(Swagger UI)与 `/openapi.json`;生产建议关闭或加 basic auth。
+
+## 3.17 `POST /api/import`
+
+把一个 zip 压缩包（DSL + 图片素材）导入到当前 session，详见 [08-import-package.md](./08-import-package.md)。
+
+**Request**: `multipart/form-data`
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `file` | ✓ | 二进制，≤ 50MB（`IMPORT_MAX_ZIP_SIZE`），必须是合法 zip |
+| `session_id` | ✓ | 必须属于当前用户 |
+
+zip 内容：
+
+```
+my-dialogue.zip
+├── dsl.json          # 必需
+├── manifest.json     # 可选
+├── avatars/...       # 推荐目录（仅约定）
+├── backgrounds/...   # 推荐目录（仅约定）
+└── images/...        # 推荐目录（仅约定）
+```
+
+**Response 200**：
+
+```json
+{
+  "dsl": { /* 改写后的 VideoDSL，所有 zip 内图片已替换为 /api/files/{id} */ },
+  "uploaded_files": [
+    {
+      "path_in_zip": "avatars/alice.png",
+      "file_id": "01HX...",
+      "url": "/api/files/01HX...",
+      "kind": "avatar",
+      "size": 12345,
+      "deduped": false
+    }
+  ],
+  "warnings": []
+}
+```
+
+**错误**（响应体 `detail` 字段为结构化对象，详见 08-import-package.md §8.7）：
+
+| HTTP | `code` | 触发条件 |
+|---|---|---|
+| 400 | `illegal_package` | 缺 dsl.json / 路径非法 / symlink |
+| 400 | `bad_mime` | 实际 MIME 不在 png/jpeg/webp/gif |
+| 400 | `bad_manifest` | manifest 解析失败或引用了不存在的文件 |
+| 400 | `missing_files_in_zip` | DSL 引用了 zip 内不存在的文件 |
+| 400 | `unsupported_video_url` | `Message.video_url` 指向了 zip 内文件（视频本体不导入） |
+| 400 | `schema_version_mismatch` | schema_version 不是 "1.0" |
+| 413 | `package_too_large` | zip 本体 > 50MB |
+| 413 | `unpacked_too_large` | 解压后总大小 > 20MB |
+| 413 | `file_too_large` | 单文件 > 2MB |
+| 413 | `too_many_entries` | 条目数 > 1000 |
+| 422 | `dsl_validation_failed` | Pydantic 字段校验失败 |
+| 404 | — | session 不属于当前用户 |
+
+**安全要点**（实现细节见 [08-import-package.md §8.6](./08-import-package.md)）：
+
+- Zip Slip 防御：每个 entry 解压前校验路径在 safe_root 内
+- Zip Bomb 防御：累加 `member.file_size`、限制条目数、限制压缩比
+- 文件去重：同 session 内按 md5 复用现有 `file_id`
+- 临时目录：用 `tempfile.TemporaryDirectory()`，处理完即清
+
+**前端调用**：
+
+```typescript
+import { importZip } from './api';
+const result = await importZip(file, sessionId);
+// result.dsl → 替换前端 state
+// result.uploaded_files.length → toast
+// setCurrentStep(5) → 跳到预览
+// 不自动触发 /api/render
+```
+
+## 3.18 鉴权与 session 隔离（重申）
+
+所有 `/api/import` 请求同样要求 `X-User-Id` header，且 `session_id` 必须属于该 user。
+跨用户访问返回 404（不区分原因，避免泄露存在性）。

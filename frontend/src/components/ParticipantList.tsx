@@ -18,7 +18,7 @@ function nextParticipantId(participants: Participant[]): string {
   return `p${n}`;
 }
 
-/** 参与者列表：名称、头像上传、删除与新增。 */
+/** 角色列表：名称、人设、头像上传、删除与新增。 */
 export function ParticipantList({ participants, mode, sessionId, onChange }: ParticipantListProps) {
   const updateAt = (index: number, patch: Partial<Participant>) => {
     onChange(participants.map((p, i) => (i === index ? { ...p, ...patch } : p)));
@@ -29,50 +29,70 @@ export function ParticipantList({ participants, mode, sessionId, onChange }: Par
     onChange(participants.filter((_, i) => i !== index));
   };
 
+  const canAdd = mode === 'group' || participants.length < 2;
+
   const addParticipant = () => {
+    if (!canAdd) return;
     const id = nextParticipantId(participants);
-    onChange([...participants, { id, name: '', avatar_url: null, label: null }]);
+    onChange([...participants, { id, name: '', avatar_url: null, persona: '' }]);
   };
 
   return (
     <section className="card">
-      <h2 className="card-title">参与者（{participants.length}）</h2>
+      <h2 className="card-title">角色设定（{participants.length}）</h2>
       {mode === 'single' && (
-        <p className="hint">第一个参与者视为「我」，其发言显示在右侧。</p>
+        <p className="hint">
+          对谈模式仅支持 2 名角色；第一个角色视为「我」，其发言显示在右侧。
+        </p>
       )}
       <ul className="participant-list">
         {participants.map((p, i) => (
-          <li key={p.id} className="participant-row">
-            <AvatarPicker
-              value={p.avatar_url}
-              onChange={(url) => updateAt(i, { avatar_url: url })}
-              alt={`${p.name || '参与者'} 的头像`}
-              sessionId={sessionId}
-            />
+          <li key={p.id} className="participant-row participant-row--vertical">
+            <div className="participant-main">
+              <AvatarPicker
+                value={p.avatar_url}
+                onChange={(url) => updateAt(i, { avatar_url: url })}
+                alt={`${p.name || '角色'} 的头像`}
+                sessionId={sessionId}
+              />
+              <input
+                type="text"
+                className="participant-name"
+                maxLength={16}
+                placeholder={`角色 ${i + 1} 名称`}
+                value={p.name}
+                onChange={(e) => updateAt(i, { name: e.target.value })}
+              />
+              <span className="participant-id" title="角色 ID">
+                {p.id}
+              </span>
+              <button
+                type="button"
+                className="btn btn-sm btn-danger"
+                disabled={participants.length <= 2}
+                onClick={() => removeAt(i)}
+              >
+                删除
+              </button>
+            </div>
             <input
               type="text"
-              className="participant-name"
-              maxLength={16}
-              placeholder={`参与者 ${i + 1} 名称`}
-              value={p.name}
-              onChange={(e) => updateAt(i, { name: e.target.value })}
+              className="participant-persona"
+              maxLength={200}
+              placeholder="角色设定 / 性格标签（可选，MVE 仅保存）"
+              value={p.persona ?? ''}
+              onChange={(e) => updateAt(i, { persona: e.target.value })}
             />
-            <span className="participant-id" title="参与者 ID">
-              {p.id}
-            </span>
-            <button
-              type="button"
-              className="btn btn-sm btn-danger"
-              disabled={participants.length <= 2}
-              onClick={() => removeAt(i)}
-            >
-              删除
-            </button>
           </li>
         ))}
       </ul>
-      <button type="button" className="btn btn-ghost" onClick={addParticipant}>
-        添加参与者
+      <button
+        type="button"
+        className="btn btn-ghost"
+        disabled={!canAdd}
+        onClick={addParticipant}
+      >
+        添加角色
       </button>
     </section>
   );

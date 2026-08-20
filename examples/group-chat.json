@@ -1,29 +1,19 @@
 {
   "schema_version": "1.0",
   "kind": "chat",
-  "template": "wechat",
+  "template": "cyberpunk",
   "scene": {
     "mode": "group",
-    "title": "心引力宇宙-OPC圈成都",
-    "member_count": 221,
-    "muted": true,
-    "background": "#ededed",
+    "title": "霓虹都市夜谈",
+    "background": "#0a0a12",
     "background_image_url": null,
-    "status_bar": {
-      "time": "00:00",
-      "battery_level": 61,
-      "signal_type": "5G",
-      "signal_type_secondary": "5G",
-      "dual_sim": true,
-      "show_wifi": true,
-      "show_signal": true,
-      "show_bluetooth": true,
-      "show_alarm": true
-    },
+    "style_theme": "cyberpunk",
+    "intent": "meme_sticker",
+    "intent_acknowledged": true,
     "participants": [
-      { "id": "me", "name": "我", "avatar_url": null, "label": null },
-      { "id": "inview", "name": "InVIEW", "avatar_url": null, "label": null },
-      { "id": "kelly", "name": "刘雨昕 Kelly Liu", "avatar_url": null, "label": "【OPC圈成都】" }
+      { "id": "me", "name": "我", "avatar_url": null, "persona": "" },
+      { "id": "inview", "name": "InVIEW", "avatar_url": null, "persona": "" },
+      { "id": "kelly", "name": "刘雨昕 Kelly Liu", "avatar_url": null, "persona": "乐观的创作者" }
     ],
     "messages": [
       { "sender_id": "__system__", "kind": "timestamp", "text": "星期五 18:27", "delay_ms": 1500 },
@@ -33,6 +23,10 @@
       { "sender_id": "kelly", "kind": "text", "text": "但其实只要找到参考文献。", "delay_ms": 1500 },
       { "sender_id": "kelly", "kind": "text", "text": "告诉他\n像素级模仿就可以了。", "delay_ms": 1500 },
       { "sender_id": "kelly", "kind": "emoji", "text": "🤔", "delay_ms": 1200 }
-    ]
+    ],
+    "watermark": {
+      "text": "本内容由 AI 生成 · 仅供创意表达",
+      "badge_style": "neon"
+    }
   }
 }

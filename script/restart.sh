@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 微信聊天视频生成器 —— 重启脚本
+# 对话剧场 / Dialogue Theater —— 重启脚本
 # 1. 重新编译前端产物
 # 2. 重新构建并启动 Docker 服务
 

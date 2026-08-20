@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Dialogue Theater — Pixel</title>
+<style>
+  /* ---- 复古风 ---- */
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: none; image-rendering: pixelated; }
+  :root {
+    --bg: {{ background }};
+    --pixel-green: #39ff14;
+    --pixel-blue: #00e5ff;
+    --pixel-pink: #ff00aa;
+    --pixel-yellow: #ffff00;
+    --text: #c8ffc8;
+    --text-dim: #6a9a6a;
+    --self-bg: #004400;
+    --other-bg: #1a1a2e;
+  }
+  html, body { overflow: hidden; background: var(--bg); }
+  body {
+    width: 1080px; height: 1920px; position: relative; color: var(--text);
+    display: flex; flex-direction: column;
+    font-family: "Courier New", "Lucida Console", "Noto Sans CJK SC", "PingFang SC", monospace;
+    opacity: {{ opacity }};
+  }
+  {% if background_image_url %}
+  body::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: url('{{ background_image_url }}');
+    background-size: cover; background-position: center;
+    opacity: 0.35; pointer-events: none; z-index: 0;
+  }
+  {% endif %}
+
+  /* 扫描线 */
+  body::after {
+    content: ""; position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      0deg, rgba(0,0,0,0.15) 0px, rgba(0,0,0,0.15) 2px, transparent 2px, transparent 6px
+    );
+    pointer-events: none; z-index: 9998;
+  }
+
+  /* ---- 声明卡 ---- */
+  .disclaimer-card {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: #000;
+    z-index: 10000; opacity: 1;
+    transition: opacity 0.5s step-end;
+  }
+  .disclaimer-card.hide { opacity: 0; pointer-events: none; }
+  .disclaimer-title {
+    font-size: 64px; font-weight: 800; letter-spacing: 0;
+    color: var(--pixel-green); text-shadow: 4px 4px 0 var(--pixel-pink);
+    margin-bottom: 40px;
+    font-family: "Courier New", monospace;
+  }
+  .disclaimer-text {
+    font-size: 34px; color: var(--pixel-blue); letter-spacing: 0;
+    text-align: center; line-height: 1.5;
+    text-shadow: 2px 2px 0 #000;
+  }
+
+  /* ---- 顶部标题栏 ---- */
+  .theater-header {
+    height: 120px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 40px; position: relative; z-index: 10;
+    background: #0f380f;
+    border-bottom: 6px solid var(--pixel-green);
+    box-shadow: 0 6px 0 #003b00;
+  }
+  .theater-title {
+    font-size: 48px; font-weight: 800; letter-spacing: 0;
+    color: var(--pixel-green); text-shadow: 3px 3px 0 #000;
+    text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* ---- 聊天区 ---- */
+  .chat-wrap { flex: 1; min-height: 0; overflow: hidden; position: relative; z-index: 10; }
+  .chat-inner {
+    display: flex; flex-direction: column; gap: 32px;
+    padding: 36px 40px 60px; min-height: 100%;
+    transition: transform 0.5s steps(5);
+    will-change: transform;
+  }
+
+  /* ---- 时间戳 / 幕间字幕 ---- */
+  .time-stamp {
+    align-self: center;
+    background: #000; color: var(--pixel-green);
+    font-size: 26px; letter-spacing: 0;
+    padding: 10px 24px; border: 4px solid var(--pixel-green);
+    box-shadow: 4px 4px 0 var(--pixel-blue);
+    opacity: 0; transform: translateY(10px);
+    transition: opacity .35s step-end, transform .35s step-end;
+  }
+  .time-stamp.show { opacity: 1; transform: translateY(0); }
+
+  .sys-msg {
+    align-self: center; max-width: 80%;
+    background: #000; color: var(--pixel-yellow);
+    font-size: 30px; line-height: 1.5; text-align: center;
+    padding: 16px 32px;
+    border: 4px solid var(--pixel-yellow);
+    box-shadow: 4px 4px 0 var(--pixel-pink);
+    opacity: 0; transform: translateY(20px) scale(0.96);
+    transition: opacity .5s step-end, transform .5s step-end;
+  }
+  .sys-msg.show { opacity: 1; transform: translateY(0) scale(1); }
+
+  /* ---- 消息行 ---- */
+  .msg {
+    display: flex; gap: 20px; max-width: 86%; align-self: flex-start;
+    opacity: 0; transform: translateY(30px);
+    transition: opacity .4s step-end, transform .4s step-end;
+  }
+  .msg.show { opacity: 1; transform: translateY(0); }
+
+  /* 方形像素头像 */
+  .avatar {
+    width: 88px; height: 88px; flex: none;
+    background-size: cover; background-position: center;
+    background-color: var(--other-bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; font-weight: 800; color: var(--pixel-green);
+    border: 4px solid var(--pixel-green);
+    box-shadow: 4px 4px 0 #000;
+  }
+  .avatar-default { background: #003b00; }
+
+  .msg .body { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+  .sender-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .sender { font-size: 24px; color: var(--text-dim); }
+
+  /* 像素气泡 —— 硬边矩形 */
+  .bubble {
+    position: relative; max-width: 100%;
+    padding: 22px 28px; font-size: 40px; line-height: 1.4;
+    color: var(--text); word-break: break-word;
+    background: var(--other-bg);
+    border: 4px solid var(--pixel-blue);
+    box-shadow: 6px 6px 0 #000;
+  }
+
+  /* 自己(右侧,绿色) */
+  .msg.self { flex-direction: row-reverse; align-self: flex-end; }
+  .msg.self .body { align-items: flex-end; }
+  .msg.self .bubble {
+    background: var(--self-bg);
+    border-color: var(--pixel-green);
+  }
+  .msg.self .sender-row { display: none; }
+
+  /* 单独表情消息 */
+  .msg.emoji .bubble { background: transparent !important; border: none; box-shadow: none; padding: 0; }
+  .msg.emoji .emoji-text { font-size: 120px; line-height: 1; }
+  .msg.emoji.self { align-self: flex-end; }
+
+  /* 图片消息 */
+  .img-bubble { padding: 12px; background: #000; border: 4px solid var(--pixel-pink); }
+  .img-wrap { overflow: hidden; }
+  .img-wrap img { display: block; max-width: 500px; max-height: 680px;
+                  width: auto; height: auto; image-rendering: pixelated; }
+  .img-caption { padding: 12px 4px 2px; font-size: 34px; line-height: 1.4;
+                 color: var(--text); max-width: 480px; word-break: break-word; }
+
+  /* 视频消息 */
+  .video-bubble { padding: 0; overflow: hidden;
+                  position: relative; max-width: 500px; background: #000;
+                  border: 4px solid var(--pixel-yellow); box-shadow: 6px 6px 0 #000; }
+  .video-bubble .video-cover { display: block; width: 500px; min-height: 280px;
+                               max-height: 680px; object-fit: cover; image-rendering: pixelated; }
+  .video-play { position: absolute; left: 50%; top: 50%;
+                width: 80px; height: 80px; background: var(--pixel-pink);
+                transform: translate(-50%, -50%);
+                display: flex; align-items: center; justify-content: center;
+                border: 4px solid #fff; box-shadow: 4px 4px 0 #000; }
+  .video-play::before { content: ""; width: 0; height: 0;
+    border-left: 28px solid #fff; border-top: 18px solid transparent;
+    border-bottom: 18px solid transparent; margin-left: 8px; }
+  .video-duration { position: absolute; right: 14px; bottom: 14px;
+                    background: #000; color: var(--pixel-yellow);
+                    font-size: 26px; padding: 4px 10px;
+                    border: 2px solid var(--pixel-yellow); }
+
+  /* ---- 回复引用 ---- */
+  .reply-quote {
+    margin-bottom: 10px;
+    padding: 10px 18px;
+    background: #000;
+    border-left: 4px solid var(--pixel-green);
+    max-width: 100%;
+  }
+  .reply-quote-sender { font-size: 22px; font-weight: 700; color: var(--pixel-green); margin-bottom: 4px; }
+  .reply-quote-text { font-size: 26px; color: var(--pixel-blue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msg.self .reply-quote { border-left: none; border-right: 4px solid var(--pixel-pink); }
+  .msg.self .reply-quote-sender { color: var(--pixel-pink); }
+
+  /* ---- AI 角标 ---- */
+  .ai-badge {
+    position: absolute; right: 28px; bottom: 28px; z-index: 9999;
+    padding: 10px 20px; font-size: 24px; letter-spacing: 0;
+    pointer-events: none; user-select: none;
+    background: #000; color: var(--pixel-green);
+    border: 4px solid var(--pixel-green);
+    box-shadow: 4px 4px 0 var(--pixel-pink);
+  }
+  .ai-badge.neon {
+    color: var(--pixel-green); border-color: var(--pixel-green);
+    box-shadow: 4px 4px 0 var(--pixel-blue);
+  }
+  .ai-badge.minimal {
+    color: var(--text-dim); border-color: var(--text-dim);
+    box-shadow: 4px 4px 0 #000;
+  }
+  .ai-badge.retro {
+    color: #000; background: var(--pixel-pink); border-color: #fff;
+    font-weight: 800; box-shadow: 4px 4px 0 #000;
+  }
+</style>
+</head>
+<body>
+  <!-- 片头声明卡 -->
+  <div class="disclaimer-card" id="__disclaimer__">
+    <div class="disclaimer-title">DIALOGUE THEATER</div>
+    <div class="disclaimer-text">{{ disclaimer_text }}</div>
+  </div>
+
+  <!-- 顶部标题栏 -->
+  <div class="theater-header">
+    <div class="theater-title">{{ title }}</div>
+  </div>
+
+  <!-- 聊天区 -->
+  <div class="chat-wrap" id="chat-wrap">
+    <div class="chat-inner" id="chat-inner">
+      {% macro reply_quote(m) %}
+        {% if m.reply_to_dom_id %}
+          <div class="reply-quote" data-reply-to="{{ m.reply_to_dom_id }}">
+            <div class="reply-quote-sender">{{ m.reply_to_sender_name }}</div>
+            <div class="reply-quote-text">{{ m.reply_to_text[:30] }}{% if (m.reply_to_text | length) > 30 %}…{% endif %}</div>
+          </div>
+        {% endif %}
+      {% endmacro %}
+      {% for m in messages %}
+        {% if m.kind == 'sys' %}
+          <div class="sys-msg" id="{{ m.dom_id }}">{{ m.text }}</div>
+        {% elif m.kind == 'timestamp' %}
+          <div class="time-stamp" id="{{ m.dom_id }}">{{ m.text }}</div>
+        {% elif m.kind == 'emoji' %}
+          <div class="msg emoji {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+            {% else %}
+              <div class="avatar avatar-default">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble"><span class="emoji-text">{{ m.text }}</span></div>
+            </div>
+          </div>
+        {% elif m.kind == 'image' %}
+          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+            {% else %}
+              <div class="avatar avatar-default">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble img-bubble">
+                <div class="img-wrap"><img src="{{ m.image_url }}" alt="{{ m.text or '' }}"></div>
+                {% if m.text %}<div class="img-caption">{{ m.text }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        {% elif m.kind == 'video' %}
+          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+            {% else %}
+              <div class="avatar avatar-default">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble video-bubble">
+                <img class="video-cover" src="{{ m.cover_url or m.video_url }}" alt="">
+                <div class="video-play"></div>
+                <div class="video-duration">{{ m.duration }}</div>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+            {% else %}
+              <div class="avatar avatar-default">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble">{{ m.text | replace('\n', '<br>') | safe }}</div>
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- AI 角标 -->
+  <div class="ai-badge {{ ai_badge_style }}">{{ watermark_text }}</div>
+
+<script>
+  const TIMELINE = {{ timeline | tojson }};
+  const chatWrap = document.getElementById('chat-wrap');
+  const chatInner = document.getElementById('chat-inner');
+
+  function currentShift() {
+    const m = chatInner.style.transform.match(/translateY\((-?[\d.]+)px\)/);
+    return m ? parseFloat(m[1]) : 0;
+  }
+
+  function scrollToShow(el) {
+    if (!el) return;
+    const wrapRect = chatWrap.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const overflow = elRect.bottom - wrapRect.bottom;
+    if (overflow > 0) {
+      chatInner.style.transform = 'translateY(-' + (Math.abs(currentShift()) + overflow) + 'px)';
+    }
+  }
+
+  function autoScroll(el) {
+    if (!el) return;
+    scrollToShow(el);
+    el.querySelectorAll('img').forEach(img => {
+      if (!img.complete) {
+        img.addEventListener('load', () => scrollToShow(el), { once: true });
+      }
+    });
+  }
+
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      TIMELINE.forEach(t => setTimeout(() => {
+        const el = document.getElementById(t.id);
+        if (!el) return;
+        if (t.type === 'disclaimer') {
+          el.classList.add('hide');
+          return;
+        }
+        el.classList.add('show');
+        setTimeout(() => autoScroll(el), 250);
+      }, t.at));
+    }, 300);
+  });
+</script>
+</body>
+</html>

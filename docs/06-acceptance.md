@@ -2,7 +2,7 @@
 
 ## 6.1 端到端核心场景
 
-### E2E-1 · 群聊 5 条消息生成
+### E2E-1 · 群像 5 条消息生成
 
 **前置**:浏览器打开 `http://localhost:8080`,页面为空配置(无 demo 数据)
 
@@ -28,7 +28,7 @@
 - [ ] 系统消息居中显示,带红色脉冲
 - [ ] MP4 用播放器打开流畅
 
-### E2E-2 · 单聊自己右侧
+### E2E-2 · 对谈自己右侧
 
 **步骤**:
 1. 添加 2 个参与者:`id="me", name="我"` 和 `id="her", name="她"`
@@ -189,7 +189,7 @@ curl http://localhost:8000/health  # → {"status":"ok"}
 ### DEPLOY-2 · 字体就绪
 
 ```bash
-docker exec wechat-video-gen fc-list :lang=zh | head
+docker exec dialogue-theater fc-list :lang=zh | head
 ```
 
 **验收**:
@@ -198,7 +198,7 @@ docker exec wechat-video-gen fc-list :lang=zh | head
 ### DEPLOY-3 · ffmpeg 可用
 
 ```bash
-docker exec wechat-video-gen ffmpeg -version | head -1
+docker exec dialogue-theater ffmpeg -version | head -1
 ```
 
 **验收**:
@@ -208,8 +208,8 @@ docker exec wechat-video-gen ffmpeg -version | head -1
 
 - [ ] 浏览器打开 `/`,看到表单 + 右侧预览(空配置时显示占位提示,无 demo 数据)
 - [ ] 上传头像、编辑消息,iframe 实时同步
-- [ ] 单聊模式"自己"消息在右侧
-- [ ] 群聊模式所有消息在左侧(默认)
+- [ ] 对谈模式"自己"消息在右侧
+- [ ] 群像模式所有消息在左侧(默认)
 - [ ] 图片消息正确显示
 - [ ] 系统消息显示并带 flash
 - [ ] 点"生成视频" → 30s 内拿到 MP4

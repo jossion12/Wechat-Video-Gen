@@ -75,9 +75,6 @@ class CurrentUser:
         """兼容老代码用的属性名。"""
         return self.id
 
-    @property
-    def can_remove_float_watermark(self) -> bool:
-        return self.registered_at is not None or self.paid_at is not None
 
 
 def _validate_user_id(value: str) -> str:

@@ -1,27 +1,18 @@
 {
   "schema_version": "1.0",
   "kind": "chat",
-  "template": "wechat",
+  "template": "cyberpunk",
   "scene": {
     "mode": "single",
-    "title": "潘文",
-    "subtitle": "云熙数码",
-    "background": "#ededed",
+    "title": "雨夜便利店",
+    "background": "#0a0a12",
     "background_image_url": null,
-    "status_bar": {
-      "time": "00:00",
-      "battery_level": 61,
-      "signal_type": "5G",
-      "signal_type_secondary": "5G",
-      "dual_sim": true,
-      "show_wifi": true,
-      "show_signal": true,
-      "show_bluetooth": true,
-      "show_alarm": true
-    },
+    "style_theme": "cyberpunk",
+    "intent": "story_visualization",
+    "intent_acknowledged": true,
     "participants": [
-      { "id": "me", "name": "我", "avatar_url": "/uploads/me.jpg", "label": null },
-      { "id": "pan", "name": "潘文", "avatar_url": "/uploads/pan.jpg", "label": null }
+      { "id": "me", "name": "我", "avatar_url": "/uploads/me.jpg", "persona": "" },
+      { "id": "pan", "name": "潘文", "avatar_url": "/uploads/pan.jpg", "persona": "" }
     ],
     "messages": [
       { "sender_id": "pan", "kind": "text", "text": "内屏还是外屏", "delay_ms": 1500 },
@@ -32,6 +23,10 @@
       { "sender_id": "me", "kind": "text", "text": "我看只有每个月第一周的周五到周天吗？", "delay_ms": 2000 },
       { "sender_id": "pan", "kind": "text", "text": "对", "delay_ms": 1200 },
       { "sender_id": "me", "kind": "text", "text": "好的", "delay_ms": 1200 }
-    ]
+    ],
+    "watermark": {
+      "text": "本内容由 AI 生成 · 仅供创意表达",
+      "badge_style": "neon"
+    }
   }
 }

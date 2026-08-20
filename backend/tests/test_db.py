@@ -75,7 +75,7 @@ async def test_job_insert_and_status_progression():
     """job 入库 → 推进状态 → finish。"""
     await db.upsert_user_async("u1")
     await db.create_session_async("u1", "s1")
-    config = {"schema_version": "1.0", "kind": "chat", "template": "wechat", "scene": {}}
+    config = {"schema_version": "1.0", "kind": "chat", "template": "cyberpunk", "scene": {}}
     j = await db.insert_job_async(
         job_id="j1", session_id="s1", user_id="u1", config=config,
     )
@@ -96,7 +96,7 @@ async def test_jobs_isolated_per_user():
     await db.upsert_user_async("u2")
     await db.create_session_async("u1", "s1")
     await db.create_session_async("u2", "s2")
-    cfg = {"schema_version": "1.0", "kind": "chat", "template": "wechat", "scene": {}}
+    cfg = {"schema_version": "1.0", "kind": "chat", "template": "cyberpunk", "scene": {}}
     await db.insert_job_async(job_id="j1", session_id="s1", user_id="u1", config=cfg)
     await db.insert_job_async(job_id="j2", session_id="s2", user_id="u2", config=cfg)
     u1_jobs = await asyncio.to_thread(db.list_user_jobs, "u1")

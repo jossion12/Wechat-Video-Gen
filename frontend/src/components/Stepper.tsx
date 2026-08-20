@@ -11,7 +11,7 @@ interface StepperProps {
 
 /**
  * 顶部步骤指示器：数字圆形 + 标题 + 连接线。
- * 当前步骤高亮为微信绿，已完成步骤显示对勾且可点击回退，
+ * 当前步骤高亮为霓虹蓝，已完成步骤显示对勾且可点击回退，
  * 未到达步骤禁用。
  */
 export function Stepper({ steps, currentStep, onStepClick }: StepperProps) {

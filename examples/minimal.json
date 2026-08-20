@@ -1,20 +1,27 @@
 {
   "schema_version": "1.0",
   "kind": "chat",
-  "template": "wechat",
+  "template": "cyberpunk",
   "scene": {
     "mode": "single",
     "title": "周末计划",
-    "background": "#ededed",
+    "background": "#0a0a12",
     "background_image_url": null,
+    "style_theme": "cyberpunk",
+    "intent": "short_video_drama",
+    "intent_acknowledged": true,
     "participants": [
-      { "id": "me", "name": "我", "avatar_url": null },
-      { "id": "her", "name": "她", "avatar_url": null }
+      { "id": "me", "name": "我", "avatar_url": null, "persona": "" },
+      { "id": "her", "name": "她", "avatar_url": null, "persona": "" }
     ],
     "messages": [
       { "sender_id": "me", "kind": "text", "text": "在吗", "delay_ms": 1500 },
       { "sender_id": "her", "kind": "text", "text": "嗯,怎么了", "delay_ms": 1500 },
       { "sender_id": "me", "kind": "text", "text": "周末吃饭?", "delay_ms": 1500 }
-    ]
+    ],
+    "watermark": {
+      "text": "本内容由 AI 生成 · 仅供创意表达",
+      "badge_style": "neon"
+    }
   }
 }

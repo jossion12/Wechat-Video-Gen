@@ -1,37 +1,70 @@
-import type { Mode, WatermarkConfig } from '../types';
+import type { AIBadgeStyle, Mode, StyleTheme, WatermarkConfig } from '../types';
+import { STYLE_THEME_LABELS } from '../types';
 import { AvatarPicker } from './common/AvatarPicker';
+
+import type { ChatScene } from '../types';
 
 interface HeaderEditorProps {
   mode: Mode;
   title: string;
   backgroundImage: string | null;
   opacity: number;
+  styleTheme: StyleTheme;
   watermark: WatermarkConfig;
   sessionId: string | null;
-  onChange: (patch: {
-    mode?: Mode;
-    title?: string;
-    background_image_url?: string | null;
-    opacity?: number;
-    watermark?: WatermarkConfig;
-  }) => void;
+  onChange: (patch: Partial<ChatScene>) => void;
 }
 
-/** 视频头部设置：聊天模式、标题、背景图片与全局透明度。 */
+const STYLE_OPTIONS: { value: StyleTheme; label: string }[] = [
+  { value: 'cyberpunk', label: STYLE_THEME_LABELS.cyberpunk },
+  { value: 'watercolor', label: STYLE_THEME_LABELS.watercolor },
+  { value: 'pixel', label: STYLE_THEME_LABELS.pixel },
+  { value: 'comic', label: STYLE_THEME_LABELS.comic },
+];
+
+const BADGE_OPTIONS: { value: AIBadgeStyle; label: string }[] = [
+  { value: 'neon', label: '霓虹' },
+  { value: 'minimal', label: '极简' },
+  { value: 'retro', label: '复古印章' },
+];
+
+/** 视觉风格设置：对话模式、标题、背景图片、透明度与 AI 角标样式。 */
 export function HeaderEditor({
   mode,
   title,
   backgroundImage,
   opacity,
+  styleTheme,
   watermark,
   sessionId,
   onChange,
 }: HeaderEditorProps) {
+  const badgeStyle = watermark.badge_style;
   return (
     <section className="card">
-      <h2 className="card-title">视频头部</h2>
+      <h2 className="card-title">视觉风格</h2>
       <div className="form-row">
-        <span className="form-label">聊天模式</span>
+        <span className="form-label">风格主题</span>
+        <div className="radio-group">
+          {STYLE_OPTIONS.map((o) => (
+            <label
+              key={o.value}
+              className={`radio-option${styleTheme === o.value ? ' radio-option--active' : ''}`}
+            >
+              <input
+                type="radio"
+                name="style-theme"
+                value={o.value}
+                checked={styleTheme === o.value}
+                onChange={() => onChange({ style_theme: o.value })}
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="form-row">
+        <span className="form-label">对话模式</span>
         <div className="radio-group">
           <label className={`radio-option${mode === 'single' ? ' radio-option--active' : ''}`}>
             <input
@@ -41,7 +74,7 @@ export function HeaderEditor({
               checked={mode === 'single'}
               onChange={() => onChange({ mode: 'single' })}
             />
-            单聊
+            对谈
           </label>
           <label className={`radio-option${mode === 'group' ? ' radio-option--active' : ''}`}>
             <input
@@ -51,20 +84,20 @@ export function HeaderEditor({
               checked={mode === 'group'}
               onChange={() => onChange({ mode: 'group' })}
             />
-            群聊
+            群像
           </label>
         </div>
       </div>
       <div className="form-row">
         <label className="form-label" htmlFor="chat-title">
-          聊天标题
+          标题
         </label>
         <input
           id="chat-title"
           type="text"
           maxLength={30}
           value={title}
-          placeholder="例如：家人群 (3)"
+          placeholder="例如：雨夜便利店"
           onChange={(e) => onChange({ title: e.target.value })}
         />
       </div>
@@ -75,10 +108,10 @@ export function HeaderEditor({
             kind="background"
             value={backgroundImage}
             onChange={(url) => onChange({ background_image_url: url })}
-            alt="聊天背景图"
+            alt="背景图"
             sessionId={sessionId}
           />
-          <span className="hint">可选，上传后覆盖默认背景，整页平铺显示</span>
+          <span className="hint">可选，上传后以低透明度叠加在深色背景上</span>
         </div>
       </div>
       <div className="form-row">
@@ -100,34 +133,28 @@ export function HeaderEditor({
       </div>
 
       <div className="form-row">
-        <span className="form-label">飘动水印</span>
-        <label className="radio-option">
-          <input
-            type="checkbox"
-            checked={watermark.enabled}
-            onChange={(e) =>
-              onChange({ watermark: { ...watermark, enabled: e.target.checked } })
-            }
-          />
-          启用(未注册/未充值用户生效)
-        </label>
+        <span className="form-label">AI 角标</span>
+        <div className="radio-group">
+          {BADGE_OPTIONS.map((o) => (
+            <label
+              key={o.value}
+              className={`radio-option${badgeStyle === o.value ? ' radio-option--active' : ''}`}
+            >
+              <input
+                type="radio"
+                name="badge-style"
+                value={o.value}
+                checked={badgeStyle === o.value}
+                onChange={() =>
+                  onChange({ watermark: { ...watermark, badge_style: o.value } })
+                }
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
       </div>
-      <div className="form-row">
-        <label className="form-label" htmlFor="watermark-text">
-          水印内容
-        </label>
-        <input
-          id="watermark-text"
-          type="text"
-          maxLength={60}
-          value={watermark.text}
-          placeholder="例如：@AI生成 {date}"
-          onChange={(e) =>
-            onChange({ watermark: { ...watermark, text: e.target.value } })
-          }
-        />
-        <span className="hint">{'{date} 会自动替换为当天日期'}</span>
-      </div>
+      <p className="hint">AI 生成标识不可关闭，仅可切换视觉样式。</p>
     </section>
   );
 }

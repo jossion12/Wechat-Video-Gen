@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.dsl import ChatScene, VideoDSL, auto_duration
-from app.models import Message, UserInfo
+from app.models import DISCLAIMER_CARD_TEXT, Message
 from app.storage import BASE_URL
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
-ICONS_DIR = Path(__file__).parent / "assets" / "icons" / "status-bar"
 
 _env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
@@ -20,35 +18,8 @@ _env = Environment(
 )
 
 
-@lru_cache(maxsize=None)
-def _read_svg(filename: str) -> str:
-    """读取状态栏图标 SVG 文件(仅一次,后续走缓存)。"""
-    path = ICONS_DIR / filename
-    if not path.is_file():
-        return ""
-    raw = path.read_text(encoding="utf-8")
-    # 去掉 XML 声明与 xmlns 重复属性,保留 <svg> 根节点,直接插入 JSX 即可
-    if raw.startswith("<?xml"):
-        raw = raw.split("?>", 1)[1].lstrip()
-    return raw.strip()
-
-
-@lru_cache(maxsize=None)
-def _load_status_bar_icons() -> dict[str, str]:
-    """加载状态栏所需的全部 SVG 串,按用途命名。"""
-    static_icons = {
-        "bluetooth": _read_svg("bluetooth-24.svg"),
-        "wifi": _read_svg("wifi-24.svg"),
-        "alarm": _read_svg("alarm-24.svg"),
-    }
-    # 电池 0-10 动态映射
-    for n in range(11):
-        static_icons[f"battery_{n}"] = _read_svg(f"battery-{n}.svg")
-    return static_icons
-
-
-def load_template():
-    return _env.get_template("wechat_chat.html.j2")
+def load_template(name: str):
+    return _env.get_template(f"{name}_chat.html.j2")
 
 
 def resolve_upload_url(url: str | None) -> str | None:
@@ -74,7 +45,7 @@ def build_participants(config: ChatScene) -> list[dict]:
             "id": p.id,
             "name": p.name,
             "avatar_url": resolve_upload_url(p.avatar_url),
-            "label": p.label,
+            "persona": p.persona,
             "css_class": p.id,
         }
         for p in config.participants
@@ -101,10 +72,32 @@ def _is_self(config: ChatScene, message: Message) -> bool:
 
 
 def build_messages(config: ChatScene) -> list[dict]:
-    """把消息列表展平成模板结构,加上 css_class / is_self / flash / show_avatar。"""
+    """把消息列表展平成模板结构,加上 css_class / is_self / flash / show_avatar / reply_to_*。"""
     by_id = {p.id: p for p in config.participants}
+
+    def _reply_info(current_idx: int) -> dict[str, str | None]:
+        """计算当前消息的回复引用信息;无效时全返回 None。"""
+        m = config.messages[current_idx]
+        reply_to = m.reply_to
+        if reply_to is None:
+            return {"reply_to_dom_id": None, "reply_to_sender_name": None, "reply_to_text": None}
+        # 1-based 序号必须指向当前消息之前,且不能是 sys/timestamp
+        if reply_to < 1 or reply_to >= current_idx + 1 or reply_to > len(config.messages):
+            return {"reply_to_dom_id": None, "reply_to_sender_name": None, "reply_to_text": None}
+        target = config.messages[reply_to - 1]
+        if target.kind in {"sys", "timestamp"}:
+            return {"reply_to_dom_id": None, "reply_to_sender_name": None, "reply_to_text": None}
+        target_sender = by_id.get(target.sender_id)
+        text = (target.text or "").split("\n", 1)[0]
+        return {
+            "reply_to_dom_id": f"m{reply_to}",
+            "reply_to_sender_name": target_sender.name if target_sender else "",
+            "reply_to_text": text,
+        }
+
     out: list[dict] = []
     for i, m in enumerate(config.messages, start=1):
+        reply = _reply_info(i - 1)
         if m.kind == "sys":
             out.append(
                 {
@@ -113,7 +106,7 @@ def build_messages(config: ChatScene) -> list[dict]:
                     "sender_id": m.sender_id,
                     "sender_name": "",
                     "sender_avatar": None,
-                    "label": None,
+                    "persona": None,
                     "text": m.text,
                     "image_url": None,
                     "video_url": None,
@@ -121,9 +114,10 @@ def build_messages(config: ChatScene) -> list[dict]:
                     "duration": None,
                     "css_class": "__system__",
                     "is_self": False,
-                    "flash": "移出" in (m.text or ""),
+                    "flash": False,
                     "show_avatar": False,
                     "show_name": False,
+                    **reply,
                 }
             )
             continue
@@ -136,7 +130,7 @@ def build_messages(config: ChatScene) -> list[dict]:
                     "sender_id": m.sender_id,
                     "sender_name": "",
                     "sender_avatar": None,
-                    "label": None,
+                    "persona": None,
                     "text": m.text,
                     "image_url": None,
                     "video_url": None,
@@ -147,6 +141,7 @@ def build_messages(config: ChatScene) -> list[dict]:
                     "flash": False,
                     "show_avatar": False,
                     "show_name": False,
+                    **reply,
                 }
             )
             continue
@@ -160,7 +155,7 @@ def build_messages(config: ChatScene) -> list[dict]:
                 "sender_id": m.sender_id,
                 "sender_name": sender.name,
                 "sender_avatar": resolve_upload_url(sender.avatar_url),
-                "label": sender.label,
+                "persona": sender.persona,
                 "text": m.text,
                 "image_url": resolve_upload_url(m.image_url),
                 "video_url": resolve_upload_url(m.video_url),
@@ -171,22 +166,23 @@ def build_messages(config: ChatScene) -> list[dict]:
                 "flash": False,
                 "show_avatar": True,
                 "show_name": not is_self,
+                **reply,
             }
         )
     return out
 
 
 def build_timeline(config: ChatScene) -> list[dict]:
-    """生成 TIMELINE 数组 — 见 docs/04-template.md §4.6。"""
-    timeline: list[dict] = []
+    """生成 TIMELINE 数组 — 开头固定 1s AI 声明卡,然后按消息 delay 推进。"""
+    timeline: list[dict] = [{"id": "__disclaimer__", "at": 0, "type": "disclaimer"}]
     start_idx = 0
-    t = 500  # 第一条消息显示时间
+    t = 1000  # 声明卡显示 1s,第一条消息在 1s 后显示
 
     first_msg = config.messages[0] if config.messages else None
     if first_msg and first_msg.kind == "timestamp" and first_msg.text:
         timeline.append({"id": "m1", "at": t, "type": "timestamp"})
         start_idx = 1
-        t = 1200
+        t = 1700
 
     for i, m in enumerate(config.messages[start_idx:], start=start_idx + 1):
         timeline.append(
@@ -198,7 +194,7 @@ def build_timeline(config: ChatScene) -> list[dict]:
                     if m.kind == "sys"
                     else "timestamp" if m.kind == "timestamp" else "msg"
                 ),
-                "flash": m.kind == "sys" and "移出" in (m.text or ""),
+                "flash": False,
             }
         )
         t += m.delay_ms
@@ -206,58 +202,41 @@ def build_timeline(config: ChatScene) -> list[dict]:
 
 
 def resolve_duration_ms(config: ChatScene) -> int:
-    """总时长:用户显式传 duration_ms 则用用户值,否则自动算。"""
+    """总时长:用户显式传 duration_ms 则用用户值,否则自动算(含 1s 声明卡)。"""
     if config.duration_ms is not None:
         return config.duration_ms
     first_msg = config.messages[0] if config.messages else None
-    first_delay_ms = 1200 if first_msg and first_msg.kind == "timestamp" else 500
+    first_delay_ms = 1700 if first_msg and first_msg.kind == "timestamp" else 1000
     return auto_duration(config.messages, first_delay_ms=first_delay_ms)
 
 
-def _format_watermark_text(template: str) -> str:
-    """把水印模板中的 {date} 替换为当天日期(YYYY-MM-DD)。"""
-    from datetime import date
-
-    return template.replace("{date}", date.today().isoformat())
-
-
-def render_chat_wechat(scene: ChatScene, user: UserInfo | None = None) -> str:
-    """渲染微信聊天场景 HTML。预览与录制共用同一入口(D1)。"""
-    tmpl = load_template()
-    # 电池电量 0-100 → battery index 0-10,用于挑选用哪张 SVG
-    battery_idx = max(0, min(10, round(scene.status_bar.battery_level / 10)))
-    # 未登录/未授权用户默认带飘动水印;注册或充值后可去除飘动水印,但保留右下角 AI 生成水印
-    show_float = (
-        scene.watermark.enabled
-        and (user is None or not user.can_remove_float_watermark)
-    )
+def render_chat(scene: ChatScene, template: str) -> str:
+    """渲染对话剧场场景 HTML。预览与录制共用同一入口。"""
+    tmpl = load_template(template)
     ctx = {
         "config": scene,
         "mode": scene.mode,
         "title": scene.title,
-        "subtitle": scene.subtitle,
         "background": scene.background,
         "background_image_url": resolve_upload_url(scene.background_image_url),
         "opacity": scene.opacity,
-        "status_bar": scene.status_bar,
-        "member_count": scene.member_count,
-        "muted": scene.muted,
+        "style_theme": scene.style_theme,
+        "intent_label": scene.intent,
         "participants": build_participants(scene),
         "messages": build_messages(scene),
         "timeline": build_timeline(scene),
         "duration_ms": resolve_duration_ms(scene),
-        "icons": _load_status_bar_icons(),
-        "battery_icon": f"battery_{battery_idx}",
-        "show_float_watermark": show_float,
-        "watermark_text": _format_watermark_text(scene.watermark.text),
+        "disclaimer_text": DISCLAIMER_CARD_TEXT,
+        "ai_badge_style": scene.watermark.badge_style,
+        "watermark_text": scene.watermark.text,
     }
     return tmpl.render(**ctx)
 
 
-def render_dsl(dsl: VideoDSL, user: UserInfo | None = None) -> str:
+def render_dsl(dsl: VideoDSL) -> str:
     """按 kind + template 分发渲染。"""
     if dsl.kind != "chat":
         raise ValueError(f"unsupported dsl kind: {dsl.kind}")
-    if dsl.template == "wechat":
-        return render_chat_wechat(dsl.scene, user=user)
-    raise ValueError(f"unsupported chat template: {dsl.template}")
+    if dsl.template not in ("cyberpunk", "watercolor", "pixel", "comic"):
+        raise ValueError(f"unsupported chat template: {dsl.template}")
+    return render_chat(dsl.scene, dsl.template)

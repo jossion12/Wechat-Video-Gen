@@ -53,7 +53,16 @@ export function MessageList({ participants, messages, sessionId, onChange }: Mes
   const [openEmojiIndex, setOpenEmojiIndex] = useState<number | null>(null);
 
   const updateAt = (index: number, patch: Partial<Message>) => {
-    onChange(messages.map((m, i) => (i === index ? { ...m, ...patch } : m)));
+    const next = messages.map((m, i) => {
+      if (i !== index) return m;
+      const merged = { ...m, ...patch };
+      // sys / timestamp 消息不允许带引用
+      if (merged.kind === 'sys' || merged.kind === 'timestamp') {
+        merged.reply_to = null;
+      }
+      return merged;
+    });
+    onChange(next);
   };
 
   const move = (index: number, delta: -1 | 1) => {
@@ -65,7 +74,15 @@ export function MessageList({ participants, messages, sessionId, onChange }: Mes
   };
 
   const removeAt = (index: number) => {
-    onChange(messages.filter((_, i) => i !== index));
+    const removed1Based = index + 1;
+    const filtered = messages.filter((_, i) => i !== index);
+    const next = filtered.map((m) => {
+      if (m.reply_to == null) return m;
+      if (m.reply_to === removed1Based) return { ...m, reply_to: null };
+      if (m.reply_to > removed1Based) return { ...m, reply_to: m.reply_to - 1 };
+      return m;
+    });
+    onChange(next);
   };
 
   const addMessage = () => {
@@ -84,6 +101,7 @@ export function MessageList({ participants, messages, sessionId, onChange }: Mes
           duration: null,
           delay_ms: 1500,
           align: null,
+          reply_to: null,
         },
       ]);
       return;
@@ -101,6 +119,7 @@ export function MessageList({ participants, messages, sessionId, onChange }: Mes
         duration: null,
         delay_ms: 1500,
         align: null,
+        reply_to: null,
       },
     ]);
   };
@@ -124,6 +143,27 @@ export function MessageList({ participants, messages, sessionId, onChange }: Mes
 
   const toggleEmojiPanel = (index: number) => {
     setOpenEmojiIndex((prev) => (prev === index ? null : index));
+  };
+
+  const formatReplyLabel = (candidate: Message, idx: number): string => {
+    const sender =
+      candidate.sender_id === SYSTEM_ID
+        ? '系统'
+        : participants.find((p) => p.id === candidate.sender_id)?.name ||
+          candidate.sender_id;
+    let preview = (candidate.text || '').slice(0, 20);
+    if ((candidate.text || '').length > 20) preview += '…';
+    if (!preview) {
+      preview =
+        candidate.kind === 'image'
+          ? '[图片]'
+          : candidate.kind === 'video'
+            ? '[视频]'
+            : candidate.kind === 'emoji'
+              ? candidate.text || '[表情]'
+              : '';
+    }
+    return `回复第 ${idx + 1} 条：${sender} ${preview}`;
   };
 
   return (
@@ -193,6 +233,29 @@ export function MessageList({ participants, messages, sessionId, onChange }: Mes
                       {o.label}
                     </option>
                   ))}
+                </select>
+              </div>
+              <div className="reply-field">
+                <label className="reply-field-label">引用回复</label>
+                <select
+                  className="reply-field-select"
+                  value={m.reply_to ?? ''}
+                  disabled={isSys || m.kind === 'timestamp'}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    updateAt(i, { reply_to: v === '' ? null : Number.parseInt(v, 10) });
+                  }}
+                >
+                  <option value="">无（普通消息）</option>
+                  {messages.slice(0, i).map(
+                    (candidate, idx) =>
+                      candidate.kind !== 'sys' &&
+                      candidate.kind !== 'timestamp' && (
+                        <option key={idx} value={idx + 1}>
+                          {formatReplyLabel(candidate, idx)}
+                        </option>
+                      ),
+                  )}
                 </select>
               </div>
               <div className="message-text-field">

@@ -58,7 +58,7 @@ logger = logging.getLogger("main")
 
 warn_legacy_storage()
 
-app = FastAPI(title="WeChat Video Generator", lifespan=queue.lifespan)
+app = FastAPI(title="Dialogue Theater / 对话剧场", lifespan=queue.lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -338,14 +338,7 @@ async def preview_html(
     sess = await asyncio.to_thread(db.get_session, body.session_id)
     if sess is None or sess["user_id"] != user.id:
         raise HTTPException(404, "session not found")
-    user_info = UserInfo(
-        id=user.id,
-        username=user.username,
-        created_at=0,
-        registered_at=user.registered_at,
-        paid_at=user.paid_at,
-    )
-    html = await asyncio.to_thread(render_dsl, body.dsl, user_info)
+    html = await asyncio.to_thread(render_dsl, body.dsl)
     return {"html": html}
 
 

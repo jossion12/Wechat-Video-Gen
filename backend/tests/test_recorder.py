@@ -18,9 +18,11 @@ from app.models import Message, Participant
 
 def make_dsl(**overrides) -> VideoDSL:
     scene = dict(
+        intent="short_video_drama",
+        intent_acknowledged=True,
         participants=[
-            Participant(id="me", name="我"),
-            Participant(id="her", name="她"),
+            Participant(id="me", name="我", persona=""),
+            Participant(id="her", name="她", persona=""),
         ],
         messages=[Message(sender_id="me", kind="text", text="hi", delay_ms=1500)],
     )
@@ -53,7 +55,7 @@ async def test_render_video_does_not_shadow_imported_output_path(monkeypatch):
     """
 
     # render_dsl 顺利返回,避免测试与模板渲染耦合
-    monkeypatch.setattr(recorder, "render_dsl", lambda _dsl, user=None: "<html></html>")
+    monkeypatch.setattr(recorder, "render_dsl", lambda _dsl: "<html></html>")
     # async_playwright 立刻抛错,触发 except 块
     monkeypatch.setattr(recorder, "async_playwright", _ExplodingPlaywright)
 

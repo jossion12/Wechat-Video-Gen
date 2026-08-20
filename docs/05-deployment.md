@@ -59,7 +59,7 @@ services:
     build:
       context: .
       dockerfile: deploy/Dockerfile
-    container_name: wechat-video-gen
+    container_name: dialogue-theater
     ports:
       - "8000:8000"
     volumes:
@@ -73,7 +73,7 @@ services:
   # 可选:用 nginx 服务前端静态文件
   frontend:
     image: nginx:1.27-alpine
-    container_name: wechat-video-gen-web
+    container_name: dialogue-theater-web
     ports:
       - "8080:80"
     volumes:
@@ -118,14 +118,14 @@ server {
 无 Docker,直接 systemd 服务:
 
 ```ini
-# /etc/systemd/system/wechat-video-gen.service
+# /etc/systemd/system/dialogue-theater.service
 [Unit]
 Description=Wechat Video Generator
 After=network.target
 
 [Service]
-WorkingDirectory=/opt/wechat-video-gen/backend
-ExecStart=/opt/wechat-video-gen/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+WorkingDirectory=/opt/dialogue-theater/backend
+ExecStart=/opt/dialogue-theater/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 Restart=always
 Environment=WORKER_COUNT=2
 Environment=BASE_URL=http://localhost:8000
@@ -216,7 +216,7 @@ logging.basicConfig(
 
 ```bash
 # crontab - 每天凌晨打包
-0 3 * * * tar czf /backup/wechat-video-gen-$(date +\%F).tar.gz /opt/wechat-video-gen/storage
+0 3 * * * tar czf /backup/dialogue-theater-$(date +\%F).tar.gz /opt/dialogue-theater/storage
 ```
 
 ## 5.11 升级路径
@@ -254,7 +254,7 @@ logging.basicConfig(
 向 `X-User-Id` header 注入已验证的用户 ID，所有文件/产物仍落在
 `storage/users/{user_id}/sessions/{session_id}/{uploads|outputs}/` 下，跨用户物理隔离。
 
-SQLite 文件位置:`{STORAGE_DIR}/wechat-video-gen.db`(WAL 模式)。
+SQLite 文件位置:`{STORAGE_DIR}/dialogue-theater.db`(WAL 模式)。
 多副本部署时需迁移到集中式 DB(PostgreSQL/MySQL),可保持 `app/db.py` 的接口不变。
 
 ## 5.14 AUTH_REQUIRED 鉴权开关
@@ -278,7 +278,7 @@ WARNING auth: AUTH_REQUIRED=false: running in LOCAL DEV mode with user 'anonymou
 
 ```bash
 # 生产
-docker run -e AUTH_REQUIRED=true ... wechat-video-gen
+docker run -e AUTH_REQUIRED=true ... dialogue-theater
 
 # 本地开发
 export AUTH_REQUIRED=false

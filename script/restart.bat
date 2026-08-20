@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-REM 微信聊天视频生成器 —— 重启脚本（Windows）
+REM 对话剧场 / Dialogue Theater —— 重启脚本（Windows）
 REM 1. 重新编译前端产物
 REM 2. 重新构建并启动 Docker 服务
 
@@ -33,4 +33,4 @@ call docker compose up -d --build
 echo ==^> 服务已启动
 echo     前端: http://localhost:8080
 echo     后端: http://localhost:8000
-echo     健康检查: curl http://localhost:8000/health
+echo     健康检查: curl http://localhost:8000/health

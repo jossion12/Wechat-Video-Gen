@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "kind": "chat",
+  "template": "pixel",
+  "scene": {
+    "mode": "group",
+    "title": "复古游戏厅",
+    "background": "#051005",
+    "background_image_url": null,
+    "style_theme": "pixel",
+    "intent": "meme_sticker",
+    "intent_acknowledged": true,
+    "participants": [
+      { "id": "me", "name": "我", "avatar_url": null, "persona": "" },
+      { "id": "dev", "name": "程序猿", "avatar_url": null, "persona": "8-bit 爱好者" },
+      { "id": "art", "name": "画师喵", "avatar_url": null, "persona": "像素艺术家" }
+    ],
+    "messages": [
+      { "sender_id": "__system__", "kind": "sys", "text": "玩家加入了房间", "delay_ms": 1500 },
+      { "sender_id": "dev", "kind": "text", "text": "BOSS 血条只剩 1 格了！", "delay_ms": 1500 },
+      { "sender_id": "art", "kind": "text", "text": "我画了新的 sprite，快看", "delay_ms": 1600 },
+      { "sender_id": "me", "kind": "text", "text": "这波操作我给 8-bit 分", "delay_ms": 1500 },
+      { "sender_id": "dev", "kind": "emoji", "text": "👾", "delay_ms": 1200 }
+    ],
+    "watermark": {
+      "text": "本内容由 AI 生成 · 仅供创意表达",
+      "badge_style": "retro"
+    }
+  }
+}

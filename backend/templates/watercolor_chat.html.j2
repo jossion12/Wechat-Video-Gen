@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Dialogue Theater — Watercolor</title>
+<style>
+  /* ---- 手绘 / 莫兰迪色系 ---- */
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+  :root {
+    --bg: {{ background }};
+    --paper: #f7f4ed;
+    --morandi-blue: #8fb9c1;
+    --morandi-pink: #d4a5a5;
+    --morandi-green: #a8c5a8;
+    --morandi-purple: #b8a9c9;
+    --text: #4a4a4a;
+    --text-dim: #8c8c8c;
+    --self-gradient: linear-gradient(135deg, rgba(143,185,193,0.35) 0%, rgba(184,169,201,0.25) 100%);
+    --other-gradient: linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(247,244,237,0.9) 100%);
+  }
+  html, body { overflow: hidden; background: var(--bg); }
+  body {
+    width: 1080px; height: 1920px; position: relative; color: var(--text);
+    display: flex; flex-direction: column;
+    font-family: "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "KaiTi", "STKaiti", cursive, sans-serif;
+    opacity: {{ opacity }};
+  }
+  {% if background_image_url %}
+  body::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: url('{{ background_image_url }}');
+    background-size: cover; background-position: center;
+    opacity: 0.40; pointer-events: none; z-index: 0;
+  }
+  {% endif %}
+
+  /* 纸张纹理 */
+  body::after {
+    content: ""; position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 9998;
+  }
+
+  /* ---- 声明卡 ---- */
+  .disclaimer-card {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(247, 244, 237, 0.97);
+    z-index: 10000; opacity: 1;
+    transition: opacity 0.6s ease-out;
+  }
+  .disclaimer-card.hide { opacity: 0; pointer-events: none; }
+  .disclaimer-title {
+    font-size: 58px; font-weight: 700; letter-spacing: 6px;
+    color: var(--morandi-blue); font-family: "KaiTi", "STKaiti", cursive, serif;
+    margin-bottom: 32px;
+  }
+  .disclaimer-stamp {
+    width: 120px; height: 120px;
+    border: 3px solid var(--morandi-pink);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--morandi-pink); font-size: 22px; font-weight: 700;
+    transform: rotate(-12deg); opacity: 0.8;
+    margin-bottom: 32px;
+  }
+  .disclaimer-text {
+    font-size: 32px; color: var(--text-dim); letter-spacing: 2px;
+    text-align: center; line-height: 1.6;
+    font-family: "Noto Sans CJK SC", "PingFang SC", sans-serif;
+  }
+
+  /* ---- 顶部标题栏 ---- */
+  .theater-header {
+    height: 116px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 40px; position: relative; z-index: 10;
+    background: rgba(255, 255, 255, 0.55);
+    border-bottom: 2px dashed rgba(143, 185, 193, 0.4);
+  }
+  .theater-title {
+    font-size: 44px; font-weight: 700; letter-spacing: 3px;
+    color: var(--text); font-family: "KaiTi", "STKaiti", cursive, serif;
+    text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* ---- 聊天区 ---- */
+  .chat-wrap { flex: 1; min-height: 0; overflow: hidden; position: relative; z-index: 10; }
+  .chat-inner {
+    display: flex; flex-direction: column; gap: 34px;
+    padding: 38px 42px 60px; min-height: 100%;
+    transition: transform 0.5s ease-out;
+    will-change: transform;
+  }
+
+  /* ---- 时间戳 / 幕间字幕 ---- */
+  .time-stamp {
+    align-self: center;
+    background: rgba(255, 255, 255, 0.7); color: var(--text-dim);
+    font-size: 26px; letter-spacing: 2px;
+    padding: 10px 26px; border-radius: 20px;
+    border: 1px solid rgba(143, 185, 193, 0.3);
+    box-shadow: 2px 3px 8px rgba(0,0,0,0.06);
+    opacity: 0; transform: translateY(10px);
+    transition: opacity .35s ease-out, transform .35s ease-out;
+  }
+  .time-stamp.show { opacity: 1; transform: translateY(0); }
+
+  .sys-msg {
+    align-self: center; max-width: 78%;
+    background: rgba(255, 255, 255, 0.75); color: var(--text-dim);
+    font-size: 30px; line-height: 1.5; text-align: center;
+    padding: 18px 36px; border-radius: 24px;
+    border: 2px dashed rgba(168, 197, 168, 0.5);
+    box-shadow: 2px 4px 12px rgba(0,0,0,0.05);
+    opacity: 0; transform: translateY(20px) scale(0.96);
+    transition: opacity .5s ease-out, transform .5s ease-out;
+  }
+  .sys-msg.show { opacity: 1; transform: translateY(0) scale(1); }
+
+  /* ---- 消息行 ---- */
+  .msg {
+    display: flex; gap: 22px; max-width: 84%; align-self: flex-start;
+    opacity: 0; transform: translateY(30px) scale(0.96);
+    transition: opacity .4s ease-out, transform .4s ease-out;
+  }
+  .msg.show { opacity: 1; transform: translateY(0) scale(1); }
+
+  /* 圆形水彩头像 */
+  .avatar {
+    width: 92px; height: 92px; flex: none; border-radius: 50%;
+    background-size: cover; background-position: center;
+    background-color: rgba(255,255,255,0.6);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 34px; font-weight: 700; color: #fff;
+    border: 3px solid rgba(255,255,255,0.8);
+    box-shadow: 2px 3px 10px rgba(0,0,0,0.1);
+  }
+  .avatar-default { background: linear-gradient(135deg, rgba(143,185,193,0.6), rgba(212,165,165,0.6)); }
+
+  .msg .body { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+  .sender-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .sender { font-size: 24px; color: var(--text-dim); }
+
+  /* 水彩气泡 —— 圆润有机 */
+  .bubble {
+    position: relative; max-width: 100%;
+    padding: 24px 30px; font-size: 40px; line-height: 1.45;
+    color: var(--text); word-break: break-word;
+    background: var(--other-gradient);
+    border-radius: 28px 28px 28px 8px;
+    box-shadow: 3px 4px 14px rgba(0,0,0,0.07);
+  }
+
+  /* 自己(右侧,蓝紫水彩) */
+  .msg.self { flex-direction: row-reverse; align-self: flex-end; }
+  .msg.self .body { align-items: flex-end; }
+  .msg.self .bubble {
+    background: var(--self-gradient);
+    border-radius: 28px 28px 8px 28px;
+  }
+  .msg.self .sender-row { display: none; }
+
+  /* 单独表情消息 */
+  .msg.emoji .bubble { background: transparent !important; border: none; box-shadow: none; padding: 0; }
+  .msg.emoji .emoji-text { font-size: 120px; line-height: 1; }
+  .msg.emoji.self { align-self: flex-end; }
+
+  /* 图片消息 */
+  .img-bubble { padding: 12px; background: rgba(255,255,255,0.7); border-radius: 20px; }
+  .img-wrap { overflow: hidden; border-radius: 14px; }
+  .img-wrap img { display: block; max-width: 500px; max-height: 680px;
+                  width: auto; height: auto; border-radius: 14px; object-fit: contain; }
+  .img-caption { padding: 14px 6px 4px; font-size: 36px; line-height: 1.4;
+                 color: var(--text); max-width: 480px; word-break: break-word; }
+
+  /* 视频消息 */
+  .video-bubble { padding: 0; overflow: hidden; border-radius: 18px;
+                  position: relative; max-width: 500px; background: #eee;
+                  border: 3px solid rgba(255,255,255,0.8); }
+  .video-bubble .video-cover { display: block; width: 500px; min-height: 280px;
+                               max-height: 680px; object-fit: cover; border-radius: 16px; }
+  .video-play { position: absolute; left: 50%; top: 50%;
+                width: 92px; height: 92px; background: rgba(143,185,193,0.65);
+                border-radius: 50%; transform: translate(-50%, -50%);
+                display: flex; align-items: center; justify-content: center; }
+  .video-play::before { content: ""; width: 0; height: 0;
+    border-left: 32px solid #fff; border-top: 20px solid transparent;
+    border-bottom: 20px solid transparent; margin-left: 10px; }
+  .video-duration { position: absolute; right: 16px; bottom: 16px;
+                    background: rgba(255,255,255,0.75); color: var(--text);
+                    font-size: 26px; padding: 4px 12px; border-radius: 10px; }
+
+  /* ---- 回复引用 ---- */
+  .reply-quote {
+    margin-bottom: 10px;
+    padding: 10px 18px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.55);
+    border-left: 4px solid var(--morandi-blue);
+    max-width: 100%;
+  }
+  .reply-quote-sender { font-size: 22px; font-weight: 700; color: var(--morandi-blue); margin-bottom: 4px; }
+  .reply-quote-text { font-size: 26px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msg.self .reply-quote { border-left: none; border-right: 4px solid var(--morandi-purple); }
+  .msg.self .reply-quote-sender { color: var(--morandi-purple); }
+
+  /* ---- AI 角标 ---- */
+  .ai-badge {
+    position: absolute; right: 26px; bottom: 26px; z-index: 9999;
+    padding: 10px 22px; font-size: 24px; letter-spacing: 2px;
+    pointer-events: none; user-select: none; border-radius: 20px;
+    background: rgba(255,255,255,0.85); color: var(--text-dim);
+    border: 2px dashed var(--morandi-blue);
+    box-shadow: 2px 3px 10px rgba(0,0,0,0.06);
+  }
+  .ai-badge.neon {
+    color: var(--morandi-blue); border-color: var(--morandi-blue);
+  }
+  .ai-badge.minimal {
+    color: var(--text-dim); border-color: rgba(0,0,0,0.15);
+  }
+  .ai-badge.retro {
+    color: #fff; background: var(--morandi-pink); border-color: var(--morandi-pink);
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+  <!-- 片头声明卡 -->
+  <div class="disclaimer-card" id="__disclaimer__">
+    <div class="disclaimer-title">对话剧场</div>
+    <div class="disclaimer-stamp">AI</div>
+    <div class="disclaimer-text">{{ disclaimer_text }}</div>
+  </div>
+
+  <!-- 顶部标题栏 -->
+  <div class="theater-header">
+    <div class="theater-title">{{ title }}</div>
+  </div>
+
+  <!-- 聊天区 -->
+  <div class="chat-wrap" id="chat-wrap">
+    <div class="chat-inner" id="chat-inner">
+      {% macro reply_quote(m) %}
+        {% if m.reply_to_dom_id %}
+          <div class="reply-quote" data-reply-to="{{ m.reply_to_dom_id }}">
+            <div class="reply-quote-sender">{{ m.reply_to_sender_name }}</div>
+            <div class="reply-quote-text">{{ m.reply_to_text[:30] }}{% if (m.reply_to_text | length) > 30 %}…{% endif %}</div>
+          </div>
+        {% endif %}
+      {% endmacro %}
+      {% for m in messages %}
+        {% if m.kind == 'sys' %}
+          <div class="sys-msg" id="{{ m.dom_id }}">{{ m.text }}</div>
+        {% elif m.kind == 'timestamp' %}
+          <div class="time-stamp" id="{{ m.dom_id }}">{{ m.text }}</div>
+        {% elif m.kind == 'emoji' %}
+          <div class="msg emoji {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+            {% else %}
+              <div class="avatar avatar-default">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble"><span class="emoji-text">{{ m.text }}</span></div>
+            </div>
+          </div>
+        {% elif m.kind == 'image' %}
+          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+            {% else %}
+              <div class="avatar avatar-default">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble img-bubble">
+                <div class="img-wrap"><img src="{{ m.image_url }}" alt="{{ m.text or '' }}"></div>
+                {% if m.text %}<div class="img-caption">{{ m.text }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        {% elif m.kind == 'video' %}
+          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+            {% else %}
+              <div class="avatar avatar-default">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble video-bubble">
+                <img class="video-cover" src="{{ m.cover_url or m.video_url }}" alt="">
+                <div class="video-play"></div>
+                <div class="video-duration">{{ m.duration }}</div>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+            {% else %}
+              <div class="avatar avatar-default">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble">{{ m.text | replace('\n', '<br>') | safe }}</div>
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- AI 角标 -->
+  <div class="ai-badge {{ ai_badge_style }}">{{ watermark_text }}</div>
+
+<script>
+  const TIMELINE = {{ timeline | tojson }};
+  const chatWrap = document.getElementById('chat-wrap');
+  const chatInner = document.getElementById('chat-inner');
+
+  function currentShift() {
+    const m = chatInner.style.transform.match(/translateY\((-?[\d.]+)px\)/);
+    return m ? parseFloat(m[1]) : 0;
+  }
+
+  function scrollToShow(el) {
+    if (!el) return;
+    const wrapRect = chatWrap.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const overflow = elRect.bottom - wrapRect.bottom;
+    if (overflow > 0) {
+      chatInner.style.transform = 'translateY(-' + (Math.abs(currentShift()) + overflow) + 'px)';
+    }
+  }
+
+  function autoScroll(el) {
+    if (!el) return;
+    scrollToShow(el);
+    el.querySelectorAll('img').forEach(img => {
+      if (!img.complete) {
+        img.addEventListener('load', () => scrollToShow(el), { once: true });
+      }
+    });
+  }
+
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      TIMELINE.forEach(t => setTimeout(() => {
+        const el = document.getElementById(t.id);
+        if (!el) return;
+        if (t.type === 'disclaimer') {
+          el.classList.add('hide');
+          return;
+        }
+        el.classList.add('show');
+        setTimeout(() => autoScroll(el), 250);
+      }, t.at));
+    }, 300);
+  });
+</script>
+</body>
+</html>

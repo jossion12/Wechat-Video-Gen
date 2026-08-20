@@ -18,7 +18,7 @@ from typing import Awaitable, Callable
 from playwright.async_api import async_playwright
 
 from app.dsl import VideoDSL
-from app.models import UserInfo
+
 from app.renderer import render_dsl, resolve_duration_ms
 from app.storage import OUTPUT_EXT, output_path
 
@@ -41,10 +41,9 @@ async def render_video(
     user_id: str,
     session_id: str,
     progress_callback: ProgressCallback,
-    user: UserInfo | None = None,
 ) -> Path:
     """渲染 → 录制 → 转码,返回输出 mp4 路径。任何异常都会清理临时产物并抛出。"""
-    html = render_dsl(dsl, user=user)
+    html = render_dsl(dsl)
     duration_ms = resolve_duration_ms(dsl.scene)
     duration_s = duration_ms / 1000.0
     # 提前算路径,避免 render_dsl / resolve_duration_ms 抛错时下面的 except

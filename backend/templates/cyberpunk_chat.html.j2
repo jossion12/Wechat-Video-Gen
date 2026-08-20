@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Dialogue Theater — Cyberpunk</title>
+<style>
+  /* ---- 基础 / 赛博朋克 ---- */
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+  :root {
+    --bg: {{ background }};
+    --neon-blue: #00f0ff;
+    --neon-purple: #b829ff;
+    --neon-pink: #ff2a9d;
+    --text: #e8e8f0;
+    --text-dim: #9a9ab2;
+    --panel: rgba(20, 20, 36, 0.82);
+    --self-gradient: linear-gradient(135deg, rgba(0,240,255,0.22) 0%, rgba(80,0,255,0.22) 100%);
+    --other-gradient: linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(200,200,255,0.06) 100%);
+  }
+  html, body { overflow: hidden; background: var(--bg); }
+  body {
+    width: 1080px; height: 1920px; position: relative; color: var(--text);
+    display: flex; flex-direction: column;
+    font-family: "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    opacity: {{ opacity }};
+  }
+  {% if background_image_url %}
+  body::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: url('{{ background_image_url }}');
+    background-size: cover; background-position: center;
+    opacity: 0.35; pointer-events: none; z-index: 0;
+  }
+  {% endif %}
+
+  /* 扫描线 / 噪点氛围 */
+  body::after {
+    content: ""; position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      0deg, rgba(0,240,255,0.03) 0px, rgba(0,240,255,0.03) 1px, transparent 1px, transparent 4px
+    );
+    pointer-events: none; z-index: 9998;
+  }
+
+  /* ---- 声明卡 ---- */
+  .disclaimer-card {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(circle at center, rgba(10,10,18,0.98) 0%, rgba(5,5,12,1) 100%);
+    z-index: 10000; opacity: 1;
+    transition: opacity 0.5s ease-out;
+  }
+  .disclaimer-card.hide { opacity: 0; pointer-events: none; }
+  .disclaimer-title {
+    font-size: 56px; font-weight: 800; letter-spacing: 8px;
+    color: var(--neon-blue); text-shadow: 0 0 24px rgba(0,240,255,0.6);
+    margin-bottom: 36px;
+  }
+  .disclaimer-line {
+    width: 320px; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--neon-purple), transparent);
+    margin-bottom: 36px;
+  }
+  .disclaimer-text {
+    font-size: 34px; color: var(--text-dim); letter-spacing: 2px;
+    text-align: center; line-height: 1.6;
+  }
+
+  /* ---- 顶部标题栏 ---- */
+  .theater-header {
+    height: 120px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 40px; position: relative; z-index: 10;
+    border-bottom: 1px solid rgba(0,240,255,0.15);
+    background: linear-gradient(180deg, rgba(0,240,255,0.06) 0%, transparent 100%);
+  }
+  .theater-header::before, .theater-header::after {
+    content: ""; position: absolute; bottom: -1px; width: 120px; height: 1px;
+    background: var(--neon-blue); box-shadow: 0 0 8px var(--neon-blue);
+  }
+  .theater-header::before { left: 40px; }
+  .theater-header::after { right: 40px; }
+  .theater-title {
+    font-size: 42px; font-weight: 700; letter-spacing: 4px;
+    color: var(--text); text-shadow: 0 0 16px rgba(0,240,255,0.35);
+    text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* ---- 聊天区 ---- */
+  .chat-wrap { flex: 1; min-height: 0; overflow: hidden; position: relative; z-index: 10; }
+  .chat-inner {
+    display: flex; flex-direction: column; gap: 32px;
+    padding: 36px 40px 60px; min-height: 100%;
+    transition: transform 0.5s ease-out;
+    will-change: transform;
+  }
+
+  /* ---- 时间戳 / 幕间字幕 ---- */
+  .time-stamp {
+    align-self: center;
+    background: rgba(0,240,255,0.10); color: var(--neon-blue);
+    font-size: 26px; letter-spacing: 3px;
+    padding: 10px 28px; border-radius: 8px;
+    border: 1px solid rgba(0,240,255,0.25);
+    box-shadow: 0 0 14px rgba(0,240,255,0.15);
+    opacity: 0; transform: translateY(10px);
+    transition: opacity .35s ease-out, transform .35s ease-out;
+  }
+  .time-stamp.show { opacity: 1; transform: translateY(0); }
+
+  .sys-msg {
+    align-self: center; max-width: 78%;
+    background: rgba(184,41,255,0.12); color: var(--neon-purple);
+    font-size: 30px; line-height: 1.5; text-align: center;
+    padding: 18px 36px;
+    border-left: 3px solid var(--neon-purple); border-right: 3px solid var(--neon-purple);
+    text-shadow: 0 0 10px rgba(184,41,255,0.35);
+    opacity: 0; transform: translateY(20px) scale(0.96);
+    transition: opacity .5s ease-out, transform .5s ease-out;
+  }
+  .sys-msg.show { opacity: 1; transform: translateY(0) scale(1); }
+
+  /* ---- 消息行 ---- */
+  .msg {
+    display: flex; gap: 24px; max-width: 84%; align-self: flex-start;
+    opacity: 0; transform: translateY(30px) scale(0.96);
+    transition: opacity .4s ease-out, transform .4s ease-out;
+  }
+  .msg.show { opacity: 1; transform: translateY(0) scale(1); }
+
+  /* 六边形头像 */
+  .avatar {
+    width: 96px; height: 96px; flex: none;
+    background-size: cover; background-position: center;
+    background-color: rgba(255,255,255,0.08);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; font-weight: 700; color: var(--text);
+    text-shadow: 0 0 8px rgba(0,240,255,0.4);
+    border: 2px solid rgba(0,240,255,0.3);
+  }
+  .avatar-default { background: linear-gradient(135deg, rgba(0,240,255,0.18), rgba(184,41,255,0.18)); }
+
+  .msg .body { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+  .sender-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .sender { font-size: 24px; color: var(--text-dim); }
+
+  /* 不规则多边形气泡 */
+  .bubble {
+    position: relative; max-width: 100%;
+    padding: 24px 30px; font-size: 40px; line-height: 1.45;
+    color: var(--text); word-break: break-word;
+    background: var(--other-gradient);
+    border: 1px solid rgba(255,255,255,0.15);
+    clip-path: polygon(0 0, 100% 0, 100% 85%, 96% 100%, 0 100%, 0 0);
+    box-shadow: 0 0 22px rgba(0,240,255,0.08);
+  }
+
+  /* 自己(右侧,霓虹蓝紫) */
+  .msg.self { flex-direction: row-reverse; align-self: flex-end; }
+  .msg.self .body { align-items: flex-end; }
+  .msg.self .bubble {
+    background: var(--self-gradient);
+    border-color: rgba(0,240,255,0.35);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 4% 100%, 0 85%, 0 0);
+    box-shadow: 0 0 26px rgba(0,240,255,0.14);
+  }
+  .msg.self .sender-row { display: none; }
+
+  /* 单独表情消息 */
+  .msg.emoji .bubble { background: transparent !important; border: none; box-shadow: none; padding: 0; }
+  .msg.emoji .emoji-text { font-size: 130px; line-height: 1; filter: drop-shadow(0 0 12px rgba(0,240,255,0.4)); }
+  .msg.emoji.self { align-self: flex-end; }
+
+  /* 图片消息 */
+  .img-bubble { padding: 14px; background: rgba(255,255,255,0.06); }
+  .img-wrap { overflow: hidden; border-radius: 10px; }
+  .img-wrap img { display: block; max-width: 500px; max-height: 680px;
+                  width: auto; height: auto; border-radius: 10px; object-fit: contain; }
+  .img-caption { padding: 16px 6px 4px; font-size: 36px; line-height: 1.4;
+                 color: var(--text); max-width: 480px; word-break: break-word; }
+
+  /* 视频消息 */
+  .video-bubble { padding: 0; overflow: hidden; border-radius: 12px;
+                  position: relative; max-width: 500px; background: #000;
+                  border: 1px solid rgba(0,240,255,0.25); }
+  .video-bubble .video-cover { display: block; width: 500px; min-height: 280px;
+                               max-height: 680px; object-fit: cover; border-radius: 12px; }
+  .video-play { position: absolute; left: 50%; top: 50%;
+                width: 96px; height: 96px; background: rgba(0,240,255,0.25);
+                border-radius: 50%; transform: translate(-50%, -50%);
+                display: flex; align-items: center; justify-content: center;
+                box-shadow: 0 0 20px rgba(0,240,255,0.4); }
+  .video-play::before { content: ""; width: 0; height: 0;
+    border-left: 34px solid #fff; border-top: 22px solid transparent;
+    border-bottom: 22px solid transparent; margin-left: 10px; }
+  .video-duration { position: absolute; right: 18px; bottom: 18px;
+                    background: rgba(0,0,0,0.5); color: var(--neon-blue);
+                    font-size: 26px; padding: 4px 12px; border-radius: 8px; }
+
+  /* 状态标识 */
+  .status-mark { font-size: 22px; color: var(--text-dim); margin-top: 8px; }
+  .status-mark.delivered { color: var(--neon-blue); text-shadow: 0 0 6px rgba(0,240,255,0.4); }
+  .status-mark.read { color: var(--neon-purple); text-shadow: 0 0 6px rgba(184,41,255,0.4); }
+
+  /* ---- 回复引用 ---- */
+  .reply-quote {
+    margin-bottom: 10px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.10);
+    border-left: 4px solid var(--neon-blue);
+    max-width: 100%;
+  }
+  .reply-quote-sender { font-size: 22px; font-weight: 700; color: var(--neon-blue); margin-bottom: 4px; }
+  .reply-quote-text { font-size: 26px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msg.self .reply-quote { border-left: none; border-right: 4px solid var(--neon-purple); }
+  .msg.self .reply-quote-sender { color: var(--neon-purple); }
+
+  /* ---- AI 角标 ---- */
+  .ai-badge {
+    position: absolute; right: 28px; bottom: 28px; z-index: 9999;
+    padding: 10px 22px; font-size: 24px; letter-spacing: 2px;
+    pointer-events: none; user-select: none;
+  }
+  .ai-badge.neon {
+    color: var(--neon-blue); border: 1px solid var(--neon-blue);
+    background: rgba(0,240,255,0.08);
+    box-shadow: 0 0 16px rgba(0,240,255,0.25), inset 0 0 12px rgba(0,240,255,0.08);
+    text-shadow: 0 0 8px rgba(0,240,255,0.5);
+  }
+  .ai-badge.minimal {
+    color: rgba(232,232,240,0.55); border: 1px solid rgba(232,232,240,0.25);
+    background: rgba(0,0,0,0.35);
+  }
+  .ai-badge.retro {
+    color: var(--bg); background: var(--neon-pink);
+    border: 2px solid var(--neon-pink);
+    font-weight: 700; text-transform: uppercase;
+    box-shadow: 0 0 14px rgba(255,42,157,0.35);
+  }
+</style>
+</head>
+<body>
+  <!-- 片头声明卡 -->
+  <div class="disclaimer-card" id="__disclaimer__">
+    <div class="disclaimer-title">DIALOGUE THEATER</div>
+    <div class="disclaimer-line"></div>
+    <div class="disclaimer-text">{{ disclaimer_text }}</div>
+  </div>
+
+  <!-- 顶部标题栏 -->
+  <div class="theater-header">
+    <div class="theater-title">{{ title }}</div>
+  </div>
+
+  <!-- 聊天区 -->
+  <div class="chat-wrap" id="chat-wrap">
+    <div class="chat-inner" id="chat-inner">
+      {% macro reply_quote(m) %}
+        {% if m.reply_to_dom_id %}
+          <div class="reply-quote" data-reply-to="{{ m.reply_to_dom_id }}">
+            <div class="reply-quote-sender">{{ m.reply_to_sender_name }}</div>
+            <div class="reply-quote-text">{{ m.reply_to_text[:30] }}{% if (m.reply_to_text | length) > 30 %}…{% endif %}</div>
+          </div>
+        {% endif %}
+      {% endmacro %}
+      {% for m in messages %}
+        {% if m.kind == 'sys' %}
+          <div class="sys-msg" id="{{ m.dom_id }}">{{ m.text }}</div>
+        {% elif m.kind == 'timestamp' %}
+          <div class="time-stamp" id="{{ m.dom_id }}">{{ m.text }}</div>
+        {% elif m.kind == 'emoji' %}
+          <div class="msg emoji {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+            {% else %}
+              <div class="avatar avatar-default">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble"><span class="emoji-text">{{ m.text }}</span></div>
+            </div>
+          </div>
+        {% elif m.kind == 'image' %}
+          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+            {% else %}
+              <div class="avatar avatar-default">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble img-bubble">
+                <div class="img-wrap"><img src="{{ m.image_url }}" alt="{{ m.text or '' }}"></div>
+                {% if m.text %}<div class="img-caption">{{ m.text }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        {% elif m.kind == 'video' %}
+          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+            {% else %}
+              <div class="avatar avatar-default">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble video-bubble">
+                <img class="video-cover" src="{{ m.cover_url or m.video_url }}" alt="">
+                <div class="video-play"></div>
+                <div class="video-duration">{{ m.duration }}</div>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}');"></div>
+            {% else %}
+              <div class="avatar avatar-default">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble">{{ m.text | replace('\n', '<br>') | safe }}</div>
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- AI 角标 -->
+  <div class="ai-badge {{ ai_badge_style }}">{{ watermark_text }}</div>
+
+<script>
+  const TIMELINE = {{ timeline | tojson }};
+  const chatWrap = document.getElementById('chat-wrap');
+  const chatInner = document.getElementById('chat-inner');
+
+  function currentShift() {
+    const m = chatInner.style.transform.match(/translateY\((-?[\d.]+)px\)/);
+    return m ? parseFloat(m[1]) : 0;
+  }
+
+  function scrollToShow(el) {
+    if (!el) return;
+    const wrapRect = chatWrap.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const overflow = elRect.bottom - wrapRect.bottom;
+    if (overflow > 0) {
+      chatInner.style.transform = 'translateY(-' + (Math.abs(currentShift()) + overflow) + 'px)';
+    }
+  }
+
+  function autoScroll(el) {
+    if (!el) return;
+    scrollToShow(el);
+    el.querySelectorAll('img').forEach(img => {
+      if (!img.complete) {
+        img.addEventListener('load', () => scrollToShow(el), { once: true });
+      }
+    });
+  }
+
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      TIMELINE.forEach(t => setTimeout(() => {
+        const el = document.getElementById(t.id);
+        if (!el) return;
+        if (t.type === 'disclaimer') {
+          el.classList.add('hide');
+          return;
+        }
+        el.classList.add('show');
+        setTimeout(() => autoScroll(el), 250);
+      }, t.at));
+    }, 300);
+  });
+</script>
+</body>
+</html>

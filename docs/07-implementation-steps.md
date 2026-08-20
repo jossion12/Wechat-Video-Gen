@@ -24,8 +24,8 @@ Playwright Chromium 浏览器在第一次运行时自动下载。
 
 1. **创建项目目录**:
    ```bash
-   mkdir -p wechat-video-gen/{backend/{app,templates,assets,storage,tests},frontend,deploy}
-   cd wechat-video-gen
+   mkdir -p dialogue-theater/{backend/{app,templates,assets,storage,tests},frontend,deploy}
+   cd dialogue-theater
    ```
 
 2. **写 `backend/requirements.txt`**:
@@ -56,8 +56,8 @@ Playwright Chromium 浏览器在第一次运行时自动下载。
        p.mkdir(parents=True, exist_ok=True)
    ```
 
-5. **复制并改写 `examples/05-chat-wechat-style/index.html`**
-   → `backend/templates/wechat_chat.html.j2`
+5. **复制并改写 `examples/cyberpunk-original/index.html`**
+   → `backend/templates/cyberpunk_chat.html.j2`
    按 [04-template.md §4.3](./04-template.md#43-模板骨架) 改造。
 
 6. **写 `backend/app/renderer.py`**:

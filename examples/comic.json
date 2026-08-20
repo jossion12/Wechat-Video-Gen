@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "kind": "chat",
+  "template": "comic",
+  "scene": {
+    "mode": "single",
+    "title": "侦探事务所",
+    "background": "#ffffff",
+    "background_image_url": null,
+    "style_theme": "comic",
+    "intent": "short_video_drama",
+    "intent_acknowledged": true,
+    "participants": [
+      { "id": "me", "name": "我", "avatar_url": null, "persona": "私家侦探" },
+      { "id": "client", "name": "委托人", "avatar_url": null, "persona": "神秘访客" }
+    ],
+    "messages": [
+      { "sender_id": "__system__", "kind": "sys", "text": "第一话：午夜的委托", "delay_ms": 1800 },
+      { "sender_id": "client", "kind": "text", "text": "你就是那位侦探？", "delay_ms": 1600 },
+      { "sender_id": "me", "kind": "text", "text": "坐。说说你丢了什么。", "delay_ms": 1700 },
+      { "sender_id": "client", "kind": "text", "text": "不是东西……是一个人。", "delay_ms": 2000 },
+      { "sender_id": "me", "kind": "emoji", "text": "🕵️", "delay_ms": 1400 }
+    ],
+    "watermark": {
+      "text": "本内容由 AI 生成 · 仅供创意表达",
+      "badge_style": "retro"
+    }
+  }
+}

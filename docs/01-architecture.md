@@ -54,15 +54,16 @@ wechat-video-gen/
 │   │   ├── __init__.py
 │   │   ├── main.py            # FastAPI app + 路由 + SSE
 │   │   ├── models.py          # Pydantic 数据模型
+│   │   ├── dsl.py             # VideoDSL / ChatScene 定义
 │   │   ├── renderer.py        # Jinja2 渲染 HTML
 │   │   ├── recorder.py        # Playwright 录制 + ffmpeg
 │   │   ├── queue.py           # asyncio worker pool
 │   │   └── storage.py         # 文件管理
 │   ├── templates/
-│   │   └── wechat_chat.html.j2   # 基于 05-chat-wechat-style 改造
+│   │   └── cyberpunk_chat.html.j2   # 赛博朋克原创风格
 │   ├── assets/
-│   │   └── default_avatar.png    # 可选:内置默认头像
-│   ├── storage/                  # 运行时(gitignore)
+│   │   └── default_avatar.png       # 可选:内置默认头像
+│   ├── storage/                     # 运行时(gitignore)
 │   │   ├── uploads/
 │   │   └── outputs/
 │   ├── requirements.txt
@@ -74,16 +75,19 @@ wechat-video-gen/
 │   │   ├── App.tsx
 │   │   ├── components/
 │   │   │   ├── HeaderEditor.tsx
+│   │   │   ├── IntentStep.tsx
 │   │   │   ├── ParticipantList.tsx
 │   │   │   ├── MessageList.tsx
 │   │   │   ├── PreviewPanel.tsx
 │   │   │   ├── ProgressPanel.tsx
+│   │   │   ├── StaticPreview.tsx
 │   │   │   └── common/
 │   │   ├── hooks/
 │   │   │   ├── useDebounce.ts
 │   │   │   └── useRenderJob.ts
 │   │   ├── api.ts
-│   │   └── types.ts
+│   │   ├── types.ts
+│   │   └── validate.ts
 │   ├── index.html
 │   ├── package.json
 │   ├── tsconfig.json
@@ -98,9 +102,9 @@ wechat-video-gen/
 ## 1.4 关键设计决策
 
 ### D1 · 预览与录制共用同一份 HTML
-- **后端 `/api/preview-html`** 接收 `ChatConfig`,返回渲染好的 HTML 字符串(只拼模板,不录制)
+- **后端 `/api/preview-html`** 接收 `VideoDSL`,返回渲染好的 HTML 字符串（只拼模板，不录制）
 - 前端 `<iframe srcDoc={html}>` 直接嵌入 — 改表单 → 防抖 300ms → 重渲染 srcDoc → 重播
-- 录制走相同的 `renderer.render_template()`,保证所见即所得
+- 录制走相同的 `renderer.render_dsl()`,保证所见即所得
 
 ### D2 · 不用 Redis / Celery
 - 小规模场景(十几个并发)用纯 asyncio.Queue 足够
@@ -108,17 +112,17 @@ wechat-video-gen/
 - 升级路径:后期并发上 50+ 时,worker pool 平滑迁移到 RQ / arq,接口层不变
 
 ### D3 · 消息方向规则
-- **单聊**:`participants[0]` 视为"我",其消息走 `.msg.self`(右侧蓝底);`participants[1]` 为对方,走左侧白底
-- **群聊**:除非 `participant.id == "me"`,否则所有消息都走左侧白底
-- "我" 可以在群聊里出现一次(典型场景:用户本人发言后被大家吐槽)
+- **对谈**:`participants[0]` 视为"我",其消息走 `.msg.self`(右侧霓虹气泡);`participants[1]` 为对方,走左侧半透明气泡
+- **群像**:除非 `participant.id == "me"`,否则所有消息都走左侧半透明气泡
+- "我" 可以在群像里出现一次(典型场景:用户本人发言后被大家吐槽)
 
 ### D4 · 自动算时长
-- `duration_ms = sum(m.delay_ms for m in messages) + 1000` (前后 buffer)
-- 用户可显式覆盖(`ChatConfig.duration_ms`),但通常不必
+- `duration_ms = 1000 + sum(m.delay_ms for m in messages) + 1500`,其中 1000ms 为片头 AI 声明卡
+- 用户可显式覆盖(`ChatScene.duration_ms`),但通常不必
 
-### D5 · 单一模板
-- 目前只做"微信风格"一套,沿用 `05-chat-wechat-style` 的视觉规范
-- 后续要加 iMessage / WhatsApp 风格:新增 `templates/messenger.html.j2` + `ChatConfig.template: Literal["wechat", "messenger"]`
+### D5 · 单一原创模板
+- 目前只做"赛博朋克"一套原创风格,视觉上与任何真实社交平台无关
+- 后续新增原创风格:新增 `templates/<style>_chat.html.j2` + 扩展 `VideoDSL.template` 与 `ChatScene.style_theme`
 
 ### D6 · 文件上传直传后端
 - 上传走 `POST /api/upload`,后端写到 `storage/users/{user_id}/sessions/{session_id}/uploads/{file_id}.{ext}`
@@ -127,9 +131,9 @@ wechat-video-gen/
 
 ## 1.5 与 `html-to-mp4` 主仓库的边界
 
-- 本项目**消费**主仓库的范式,不修改主仓库代码
-- 主仓库 `examples/05-chat-wechat-style/` 是参考实现,模板基于它改造
-- 主仓库未来更新样式规范时,本项目需手动同步(可在 `template.md` 写好同步步骤)
+- 本项目**消费**主仓库的录制范式,不修改主仓库代码
+- 模板为完全原创的赛博朋克风格,不再基于任何真实社交平台示例
+- 主仓库未来更新录制框架时,本项目只需调整 `recorder.py` 与 `renderer.py` 的调用契约
 
 ## 1.6 非功能性需求
 

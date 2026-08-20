@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "kind": "chat",
+  "template": "watercolor",
+  "scene": {
+    "mode": "single",
+    "title": "午后茶话",
+    "background": "#f7f4ed",
+    "background_image_url": null,
+    "style_theme": "watercolor",
+    "intent": "story_visualization",
+    "intent_acknowledged": true,
+    "participants": [
+      { "id": "me", "name": "我", "avatar_url": null, "persona": "" },
+      { "id": "lin", "name": "林夕", "avatar_url": null, "persona": "文艺少女" }
+    ],
+    "messages": [
+      { "sender_id": "__system__", "kind": "timestamp", "text": "星期日 14:30", "delay_ms": 1500 },
+      { "sender_id": "lin", "kind": "text", "text": "雨停了，要出来走走吗？", "delay_ms": 1800 },
+      { "sender_id": "me", "kind": "text", "text": "好啊，去那家新开的咖啡馆？", "delay_ms": 1600 },
+      { "sender_id": "lin", "kind": "text", "text": "嗯，我带了速写本。", "delay_ms": 1500 },
+      { "sender_id": "me", "kind": "emoji", "text": "☕", "delay_ms": 1200 }
+    ],
+    "watermark": {
+      "text": "本内容由 AI 生成 · 仅供创意表达",
+      "badge_style": "minimal"
+    }
+  }
+}

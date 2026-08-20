@@ -3,7 +3,7 @@
 新版布局(2024-Q4 引入多用户隔离):
 
     storage/
-      wechat-video-gen.db                       # SQLite
+      dialogue-theater.db                       # SQLite
       users/
         {user_id}/
           sessions/
