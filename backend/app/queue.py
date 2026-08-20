@@ -144,6 +144,13 @@ async def _process_job(job_id: str) -> None:
 
         dsl = VideoDSL.model_validate(job["config"])
 
+        user_row = await db.get_user_async(user_id)
+        user = None
+        if user_row is not None:
+            from app.models import UserInfo
+
+            user = UserInfo(**user_row)
+
         async def progress_cb(percent: int) -> None:
             await db.update_job_status_async(job_id, "running", percent)
             _publish(job_id, {"status": "running", "progress": percent})
@@ -154,6 +161,7 @@ async def _process_job(job_id: str) -> None:
             user_id=user_id,
             session_id=session_id,
             progress_callback=progress_cb,
+            user=user,
         )
 
         output_url = f"/api/jobs/{job_id}/output"

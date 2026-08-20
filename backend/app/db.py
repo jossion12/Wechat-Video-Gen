@@ -35,9 +35,11 @@ _write_lock = threading.Lock()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
-    id          TEXT PRIMARY KEY,
-    username    TEXT NOT NULL UNIQUE,
-    created_at  REAL NOT NULL
+    id              TEXT PRIMARY KEY,
+    username        TEXT NOT NULL UNIQUE,
+    created_at      REAL NOT NULL,
+    registered_at   REAL,
+    paid_at         REAL
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -124,6 +126,22 @@ def _cursor() -> Iterator[sqlite3.Cursor]:
             conn.close()
 
 
+def _ensure_columns(conn: sqlite3.Connection) -> None:
+    """向后兼容:对已有表追加后续版本新增的列。"""
+    existing = {
+        r["name"]
+        for r in conn.execute(
+            "SELECT type, name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
+    if "users" in existing:
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "registered_at" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN registered_at REAL")
+        if "paid_at" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN paid_at REAL")
+
+
 def init_schema() -> None:
     """应用启动时调一次,创建所有表(IF NOT EXISTS,幂等)。
 
@@ -133,6 +151,7 @@ def init_schema() -> None:
     conn = _connect()
     try:
         conn.executescript(SCHEMA)
+        _ensure_columns(conn)
         conn.commit()
     finally:
         conn.close()
@@ -149,11 +168,14 @@ async def init_schema_async() -> None:
 def upsert_user(user_id: str, username: str | None = None) -> dict:
     """首次出现的 user 自动入库;username 缺失则用 user_id 当 username。
 
-    Returns: dict(id, username, created_at) — 二次调用同 id 返回完全相同的 created_at。
+    Returns: dict(id, username, created_at, registered_at, paid_at)。
     """
     name = username or user_id
     with _cursor() as cur:
-        cur.execute("SELECT id, username, created_at FROM users WHERE id=?", (user_id,))
+        cur.execute(
+            "SELECT id, username, created_at, registered_at, paid_at FROM users WHERE id=?",
+            (user_id,),
+        )
         row = cur.fetchone()
         if row is None:
             ts = time.time()
@@ -161,7 +183,13 @@ def upsert_user(user_id: str, username: str | None = None) -> dict:
                 "INSERT INTO users(id, username, created_at) VALUES (?, ?, ?)",
                 (user_id, name, ts),
             )
-            return {"id": user_id, "username": name, "created_at": ts}
+            return {
+                "id": user_id,
+                "username": name,
+                "created_at": ts,
+                "registered_at": None,
+                "paid_at": None,
+            }
         return dict(row)
 
 
@@ -171,9 +199,44 @@ async def upsert_user_async(user_id: str, username: str | None = None) -> dict:
 
 def get_user(user_id: str) -> dict | None:
     with _cursor() as cur:
-        cur.execute("SELECT id, username, created_at FROM users WHERE id=?", (user_id,))
+        cur.execute(
+            "SELECT id, username, created_at, registered_at, paid_at FROM users WHERE id=?",
+            (user_id,),
+        )
         row = cur.fetchone()
         return dict(row) if row else None
+
+
+async def get_user_async(user_id: str) -> dict | None:
+    return await asyncio.to_thread(get_user, user_id)
+
+
+def mark_user_registered(user_id: str) -> dict:
+    """标记用户已注册;已注册则保留原时间。"""
+    with _cursor() as cur:
+        cur.execute(
+            "UPDATE users SET registered_at=COALESCE(registered_at, ?) WHERE id=?",
+            (time.time(), user_id),
+        )
+    return get_user(user_id)
+
+
+async def mark_user_registered_async(user_id: str) -> dict:
+    return await asyncio.to_thread(mark_user_registered, user_id)
+
+
+def mark_user_paid(user_id: str) -> dict:
+    """标记用户已充值/付费;已付费则保留原时间。"""
+    with _cursor() as cur:
+        cur.execute(
+            "UPDATE users SET paid_at=COALESCE(paid_at, ?) WHERE id=?",
+            (time.time(), user_id),
+        )
+    return get_user(user_id)
+
+
+async def mark_user_paid_async(user_id: str) -> dict:
+    return await asyncio.to_thread(mark_user_paid, user_id)
 
 
 # ---------- sessions ----------

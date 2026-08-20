@@ -19,6 +19,7 @@ from app.models import (
     Message,
     Participant,
     StatusBar,
+    WatermarkConfig,
 )
 
 SCHEMA_VERSION = "1.0"
@@ -45,6 +46,7 @@ class ChatScene(BaseModel):
     muted: bool = False  # 群聊免打扰铃铛
     participants: list[Participant] = Field(min_length=MIN_PARTICIPANTS)
     messages: list[Message] = Field(min_length=1, max_length=MAX_MESSAGES)
+    watermark: WatermarkConfig = Field(default_factory=WatermarkConfig)
 
     @field_validator("title")
     @classmethod

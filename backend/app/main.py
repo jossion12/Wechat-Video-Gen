@@ -158,7 +158,13 @@ def health():
 @app.get("/api/me", response_model=UserInfo)
 async def me(user: CurrentUser = Depends(get_current_user)):
     row = await db.upsert_user_async(user.id, user.username)
-    return UserInfo(**row)
+    return UserInfo(
+        id=row["id"],
+        username=row["username"],
+        created_at=row["created_at"],
+        registered_at=row.get("registered_at"),
+        paid_at=row.get("paid_at"),
+    )
 
 
 # ---------- sessions ----------
@@ -332,7 +338,14 @@ async def preview_html(
     sess = await asyncio.to_thread(db.get_session, body.session_id)
     if sess is None or sess["user_id"] != user.id:
         raise HTTPException(404, "session not found")
-    html = await asyncio.to_thread(render_dsl, body.dsl)
+    user_info = UserInfo(
+        id=user.id,
+        username=user.username,
+        created_at=0,
+        registered_at=user.registered_at,
+        paid_at=user.paid_at,
+    )
+    html = await asyncio.to_thread(render_dsl, body.dsl, user_info)
     return {"html": html}
 
 
@@ -443,3 +456,34 @@ async def job_events(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ---------- 内部管理(注册/充值标记) ----------
+
+
+@app.post("/api/admin/users/{user_id}/register", response_model=UserInfo)
+async def admin_register_user(
+    user_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """标记指定用户已注册。当前仅允许用户自己操作自己的注册状态;后续可扩展管理员鉴权。"""
+    if current_user.id != user_id:
+        raise HTTPException(403, "can only register yourself")
+    row = await db.mark_user_registered_async(user_id)
+    if row is None:
+        raise HTTPException(404, "user not found")
+    return UserInfo(**row)
+
+
+@app.post("/api/admin/users/{user_id}/recharge", response_model=UserInfo)
+async def admin_recharge_user(
+    user_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """标记指定用户已充值/付费。当前仅允许用户自己操作自己的付费状态;后续可扩展管理员鉴权。"""
+    if current_user.id != user_id:
+        raise HTTPException(403, "can only recharge yourself")
+    row = await db.mark_user_paid_async(user_id)
+    if row is None:
+        raise HTTPException(404, "user not found")
+    return UserInfo(**row)

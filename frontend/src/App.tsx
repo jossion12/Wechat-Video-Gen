@@ -50,6 +50,7 @@ function createDefaultScene(): ChatScene {
     muted: false,
     participants: [],
     messages: [],
+    watermark: { enabled: true, text: '@AI生成 {date}' },
   };
 }
 
@@ -199,6 +200,7 @@ export default function App() {
             title={dsl.scene.title}
             backgroundImage={dsl.scene.background_image_url}
             opacity={dsl.scene.opacity}
+            watermark={dsl.scene.watermark}
             sessionId={sessionId}
             onChange={updateScene}
           />

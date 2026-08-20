@@ -67,11 +67,17 @@ if not AUTH_REQUIRED:
 class CurrentUser:
     id: str
     username: str
+    registered_at: float | None = None
+    paid_at: float | None = None
 
     @property
     def user_id(self) -> str:
         """兼容老代码用的属性名。"""
         return self.id
+
+    @property
+    def can_remove_float_watermark(self) -> bool:
+        return self.registered_at is not None or self.paid_at is not None
 
 
 def _validate_user_id(value: str) -> str:
@@ -87,7 +93,12 @@ async def _resolve_user(uid: str) -> CurrentUser:
     """校验格式 + upsert user + 返回 CurrentUser。"""
     user_id = _validate_user_id(uid)
     row = await db.upsert_user_async(user_id)
-    return CurrentUser(id=row["id"], username=row["username"])
+    return CurrentUser(
+        id=row["id"],
+        username=row["username"],
+        registered_at=row.get("registered_at"),
+        paid_at=row.get("paid_at"),
+    )
 
 
 # ---------- 入口 ----------

@@ -79,6 +79,7 @@ class Message(BaseModel):
     cover_url: str | None = None
     duration: str | None = None  # 视频/语音时长,如 "0:10"
     delay_ms: int = 1500
+    align: Literal["left", "right"] | None = None  # 显式指定消息方向;None 时按旧规则推断
 
     @field_validator("text")
     @classmethod
@@ -141,12 +142,26 @@ class JobStatus(BaseModel):
 
 # ---------- 多用户 / session 相关(新增) ----------
 
+class WatermarkConfig(BaseModel):
+    """视频水印配置。"""
+
+    enabled: bool = True
+    text: str = "@AI生成 {date}"  # 支持 {date} 占位符,渲染时替换为当天日期
+
+
 class UserInfo(BaseModel):
     """当前用户信息。"""
 
     id: str
     username: str
     created_at: float
+    registered_at: float | None = None
+    paid_at: float | None = None
+
+    @property
+    def can_remove_float_watermark(self) -> bool:
+        """注册或充值后可去除飘动水印,但右下角仍保留 AI 生成水印。"""
+        return self.registered_at is not None or self.paid_at is not None
 
 
 class SessionInfo(BaseModel):

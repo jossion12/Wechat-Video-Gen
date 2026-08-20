@@ -1,4 +1,4 @@
-import type { Mode } from '../types';
+import type { Mode, WatermarkConfig } from '../types';
 import { AvatarPicker } from './common/AvatarPicker';
 
 interface HeaderEditorProps {
@@ -6,12 +6,14 @@ interface HeaderEditorProps {
   title: string;
   backgroundImage: string | null;
   opacity: number;
+  watermark: WatermarkConfig;
   sessionId: string | null;
   onChange: (patch: {
     mode?: Mode;
     title?: string;
     background_image_url?: string | null;
     opacity?: number;
+    watermark?: WatermarkConfig;
   }) => void;
 }
 
@@ -21,6 +23,7 @@ export function HeaderEditor({
   title,
   backgroundImage,
   opacity,
+  watermark,
   sessionId,
   onChange,
 }: HeaderEditorProps) {
@@ -94,6 +97,36 @@ export function HeaderEditor({
           />
           <span className="range-value">{Math.round(opacity * 100)}%</span>
         </div>
+      </div>
+
+      <div className="form-row">
+        <span className="form-label">飘动水印</span>
+        <label className="radio-option">
+          <input
+            type="checkbox"
+            checked={watermark.enabled}
+            onChange={(e) =>
+              onChange({ watermark: { ...watermark, enabled: e.target.checked } })
+            }
+          />
+          启用(未注册/未充值用户生效)
+        </label>
+      </div>
+      <div className="form-row">
+        <label className="form-label" htmlFor="watermark-text">
+          水印内容
+        </label>
+        <input
+          id="watermark-text"
+          type="text"
+          maxLength={60}
+          value={watermark.text}
+          placeholder="例如：@AI生成 {date}"
+          onChange={(e) =>
+            onChange({ watermark: { ...watermark, text: e.target.value } })
+          }
+        />
+        <span className="hint">{'{date} 会自动替换为当天日期'}</span>
       </div>
     </section>
   );

@@ -64,6 +64,7 @@ class Message(BaseModel):
     cover_url: str | None = None
     duration: str | None = None                     # 视频/语音时长,如 "0:10"
     delay_ms: int = 1500                            # 距上一条的间隔
+    align: Literal["left", "right"] | None = None   # 显式指定消息方向;None 时按旧规则推断
 ```
 
 | 字段 | 类型 | 必填 | 适用 kind | 说明 |
@@ -76,6 +77,7 @@ class Message(BaseModel):
 | `cover_url` | string 或 null | ✗ | video | 视频封面图 URL;为空时 fallback 到 `video_url` |
 | `duration` | string 或 null | ✗ | video | 视频时长,如 `0:10` |
 | `delay_ms` | int | ✗ | 全部 | 默认 1500ms,第一条消息的 `delay_ms` 视为"距时间戳的间隔" |
+| `align` | `"left"` \| `"right"` \| `null` | ✗ | text / image / video / emoji | 显式指定消息方向;`null` 时按旧规则推断(单聊 `participants[0]` 走右侧,群聊 `id == "me"` 走右侧) |
 
 **校验**:
 - `text` 类消息必须有非空 `text`

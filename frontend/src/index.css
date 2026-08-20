@@ -492,12 +492,16 @@ textarea {
 }
 
 .kind-select {
-  flex: 0 0 110px;
+  flex: 0 0 100px;
 }
 
 .sender-select {
   flex: 1;
   min-width: 0;
+}
+
+.align-select {
+  flex: 0 0 80px;
 }
 
 .message-text {
@@ -534,6 +538,65 @@ textarea {
 .message-actions {
   display: flex;
   gap: 6px;
+}
+
+.message-text-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.message-text-tools {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.emoji-toggle {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+}
+
+.emoji-toggle:hover:not(:disabled) {
+  background: #f2f3f5;
+  border-color: var(--wechat-green);
+}
+
+.emoji-toggle--active {
+  background: #e8f8ef;
+  border-color: var(--wechat-green);
+  color: var(--wechat-green-dark);
+}
+
+.emoji-panel {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.emoji-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.emoji-option:hover:not(:disabled) {
+  background: #f2f3f5;
+  border-color: var(--wechat-green);
 }
 
 /* ---------- preview ---------- */

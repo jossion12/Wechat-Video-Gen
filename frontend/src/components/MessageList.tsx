@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import type { Message, MessageKind, Participant } from '../types';
 import { AvatarPicker } from './common/AvatarPicker';
 
@@ -10,6 +11,35 @@ const KIND_OPTIONS: { value: MessageKind; label: string }[] = [
   { value: 'sys', label: '系统消息' },
 ];
 
+const ALIGN_OPTIONS: { value: 'auto' | 'left' | 'right'; label: string }[] = [
+  { value: 'auto', label: '自动' },
+  { value: 'left', label: '左' },
+  { value: 'right', label: '右' },
+];
+
+const DEFAULT_EMOJIS = [
+  '😀',
+  '😂',
+  '🤣',
+  '❤️',
+  '👍',
+  '🙏',
+  '😭',
+  '😘',
+  '🥰',
+  '😊',
+  '🤔',
+  '😎',
+  '😡',
+  '🎉',
+  '🔥',
+  '💯',
+  '🌹',
+  '👏',
+  '🤗',
+  '🥳',
+];
+
 interface MessageListProps {
   participants: Participant[];
   messages: Message[];
@@ -19,6 +49,9 @@ interface MessageListProps {
 
 /** 消息列表：类型、发送者、内容、图片、间隔时间与排序操作。 */
 export function MessageList({ participants, messages, sessionId, onChange }: MessageListProps) {
+  const textareaRefs = useRef<Map<number, HTMLTextAreaElement>>(new Map());
+  const [openEmojiIndex, setOpenEmojiIndex] = useState<number | null>(null);
+
   const updateAt = (index: number, patch: Partial<Message>) => {
     onChange(messages.map((m, i) => (i === index ? { ...m, ...patch } : m)));
   };
@@ -50,6 +83,7 @@ export function MessageList({ participants, messages, sessionId, onChange }: Mes
           cover_url: null,
           duration: null,
           delay_ms: 1500,
+          align: null,
         },
       ]);
       return;
@@ -66,8 +100,30 @@ export function MessageList({ participants, messages, sessionId, onChange }: Mes
         cover_url: null,
         duration: null,
         delay_ms: 1500,
+        align: null,
       },
     ]);
+  };
+
+  const insertEmoji = (index: number, emoji: string) => {
+    const textarea = textareaRefs.current.get(index);
+    if (!textarea) return;
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? 0;
+    const current = messages[index].text ?? '';
+    const nextText = current.slice(0, start) + emoji + current.slice(end);
+    updateAt(index, { text: nextText });
+    // 保持焦点并移动光标到插入位置之后
+    // selectionStart/End 以 UTF-16 code unit 计数,因此使用 emoji.length
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const pos = start + emoji.length;
+      textarea.setSelectionRange(pos, pos);
+    });
+  };
+
+  const toggleEmojiPanel = (index: number) => {
+    setOpenEmojiIndex((prev) => (prev === index ? null : index));
   };
 
   return (
@@ -123,17 +179,62 @@ export function MessageList({ participants, messages, sessionId, onChange }: Mes
                     ))
                   )}
                 </select>
+                <select
+                  className="align-select"
+                  value={m.align ?? 'auto'}
+                  disabled={isSys || m.kind === 'timestamp'}
+                  onChange={(e) => {
+                    const v = e.target.value as 'auto' | 'left' | 'right';
+                    updateAt(i, { align: v === 'auto' ? null : v });
+                  }}
+                >
+                  {ALIGN_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <textarea
-                className="message-text"
-                rows={2}
-                maxLength={500}
-                placeholder={
-                  isSys ? '系统消息内容' : m.kind === 'image' ? '图片说明（可选）' : '消息内容'
-                }
-                value={m.text ?? ''}
-                onChange={(e) => updateAt(i, { text: e.target.value })}
-              />
+              <div className="message-text-field">
+                <textarea
+                  ref={(el) => {
+                    if (el) textareaRefs.current.set(i, el);
+                    else textareaRefs.current.delete(i);
+                  }}
+                  className="message-text"
+                  rows={2}
+                  maxLength={500}
+                  placeholder={
+                    isSys ? '系统消息内容' : m.kind === 'image' ? '图片说明（可选）' : '消息内容'
+                  }
+                  value={m.text ?? ''}
+                  onChange={(e) => updateAt(i, { text: e.target.value })}
+                />
+                <div className="message-text-tools">
+                  <button
+                    type="button"
+                    className={`btn btn-sm emoji-toggle${openEmojiIndex === i ? ' emoji-toggle--active' : ''}`}
+                    onClick={() => toggleEmojiPanel(i)}
+                  >
+                    😊 表情
+                  </button>
+                </div>
+              </div>
+              {openEmojiIndex === i && (
+                <div className="emoji-panel">
+                  {DEFAULT_EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      className="emoji-option"
+                      onClick={() => insertEmoji(i, emoji)}
+                      title={emoji}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
               {m.kind === 'image' && (
                 <div className="message-image-row">
                   <AvatarPicker

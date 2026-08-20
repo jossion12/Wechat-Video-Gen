@@ -213,6 +213,43 @@
                     display: flex; align-items: center; justify-content: center; }
   .home-indicator::before { content: ""; width: 280px; height: 8px;
     background: #b0b0b0; border-radius: 4px; }
+
+  /* ---- 水印层 ---- */
+  .watermark-layer {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 9999;
+    overflow: hidden;
+  }
+  .float-watermark {
+    position: absolute;
+    font-size: 32px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.12);
+    white-space: nowrap;
+    transform: rotate(-15deg);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.4);
+    animation: floatMove 10s ease-in-out infinite;
+  }
+  @keyframes floatMove {
+    0%   { top: 12%; left: 8%; }
+    20%  { top: 78%; left: 72%; }
+    40%  { top: 62%; left: 18%; }
+    60%  { top: 22%; left: 82%; }
+    80%  { top: 86%; left: 44%; }
+    100% { top: 12%; left: 8%; }
+  }
+  .ai-watermark {
+    position: absolute;
+    right: 24px;
+    bottom: 68px;
+    font-size: 24px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.22);
+    white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+  }
 </style>
 </head>
 <body>
@@ -389,6 +426,14 @@
 
   <!-- 底部手势条 -->
   <div class="home-indicator"></div>
+
+  <!-- 水印层 -->
+  <div class="watermark-layer">
+    {% if show_float_watermark %}
+    <div class="float-watermark">{{ watermark_text }}</div>
+    {% endif %}
+    <div class="ai-watermark">AI生成</div>
+  </div>
 
 <script>
   const TIMELINE = {{ timeline | tojson }};

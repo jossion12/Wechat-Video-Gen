@@ -82,7 +82,7 @@ Jinja2 渲染时收到如下变量(由 `renderer.py` 注入):
 | `cover_url` | string 或 null | 视频封面 URL |
 | `duration` | string 或 null | 视频时长,如 `0:10` |
 | `css_class` | string | `self` / `""` / `__system__` / `__timestamp__` |
-| `is_self` | bool | 是否"自己"发言 |
+| `is_self` | bool | 是否"自己"发言;由 `message.align` 显式指定或按默认规则推断 |
 | `flash` | bool | 系统消息是否带红色脉冲 |
 | `show_avatar` | bool | 是否显示头像 |
 | `show_name` | bool | 是否显示发送者昵称(自己消息和连续消息不显示) |

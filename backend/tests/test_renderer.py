@@ -224,6 +224,39 @@ def test_group_other_message_on_left():
     assert _has_class(html, "div", "m1", "msg")
 
 
+def test_explicit_align_left_forces_left():
+    """✅ align='left' 时,即使是 me 也走左侧白底。"""
+    dsl = VideoDSL(
+        scene=ChatScene(
+            mode="group",
+            participants=[
+                Participant(id="me", name="我"),
+                Participant(id="bob", name="Bob"),
+            ],
+            messages=[Message(sender_id="me", kind="text", text="在吗", delay_ms=1500, align="left")],
+        )
+    )
+    html = render_dsl(dsl)
+    assert _has_class(html, "div", "m1", "msg")
+    assert not _has_class(html, "div", "m1", "self")
+
+
+def test_explicit_align_right_forces_right():
+    """✅ align='right' 时,即使非 me 也走右侧绿底。"""
+    dsl = VideoDSL(
+        scene=ChatScene(
+            mode="group",
+            participants=[
+                Participant(id="me", name="我"),
+                Participant(id="bob", name="Bob"),
+            ],
+            messages=[Message(sender_id="bob", kind="text", text="在吗", delay_ms=1500, align="right")],
+        )
+    )
+    html = render_dsl(dsl)
+    assert _has_class(html, "div", "m1", "self")
+
+
 def test_first_message_delay_minimum():
     """✅ 第一条消息 delay_ms < 500 报错。"""
     with pytest.raises(ValidationError):
@@ -462,3 +495,61 @@ def test_consecutive_messages_show_avatar():
     assert html.count('<div class="avatar avatar-default">') == 2
     # m2 不应带 no-avatar 类
     assert not _has_class(html, "div", "m2", "no-avatar")
+
+
+# ---- 水印 ----
+
+def test_default_watermark_renders_float_and_ai():
+    """✅ 默认未授权用户渲染飘动水印 + 右下角 AI 生成水印;{date} 替换为当天日期。"""
+    from datetime import date
+
+    dsl = make_dsl()
+    html = render_dsl(dsl)
+    assert 'class="float-watermark"' in html
+    assert "AI生成" in html
+    assert 'class="ai-watermark"' in html
+    assert date.today().isoformat() in html
+
+
+def test_disabled_watermark_hides_float_but_keeps_ai():
+    """✅ 关闭飘动水印后仍保留右下角 AI 生成水印。"""
+    from app.models import WatermarkConfig
+
+    dsl = make_dsl(watermark=WatermarkConfig(enabled=False, text="test"))
+    html = render_dsl(dsl)
+    assert 'class="float-watermark"' not in html
+    assert 'class="ai-watermark"' in html
+    assert "AI生成" in html
+
+
+def test_registered_user_removes_float_watermark():
+    """✅ 注册或充值后去除飘动水印,但 AI 生成水印仍在。"""
+    from app.models import UserInfo, WatermarkConfig
+
+    user = UserInfo(
+        id="u1",
+        username="u1",
+        created_at=0,
+        registered_at=1.0,
+        paid_at=None,
+    )
+    dsl = make_dsl(watermark=WatermarkConfig(enabled=True, text="{date}"))
+    html = render_dsl(dsl, user=user)
+    assert 'class="float-watermark"' not in html
+    assert 'class="ai-watermark"' in html
+
+
+def test_paid_user_removes_float_watermark():
+    """✅ 充值用户同样去除飘动水印。"""
+    from app.models import UserInfo, WatermarkConfig
+
+    user = UserInfo(
+        id="u2",
+        username="u2",
+        created_at=0,
+        registered_at=None,
+        paid_at=1.0,
+    )
+    dsl = make_dsl(watermark=WatermarkConfig(enabled=True, text="{date}"))
+    html = render_dsl(dsl, user=user)
+    assert 'class="float-watermark"' not in html

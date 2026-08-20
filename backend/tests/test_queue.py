@@ -86,7 +86,7 @@ async def test_worker_success_path(monkeypatch):
     """✅ worker 正常流程:done + output_url + 进度回调被调用。"""
     calls: list[int] = []
 
-    async def fake_render(dsl, job_id, user_id, session_id, progress_callback):
+    async def fake_render(dsl, job_id, user_id, session_id, progress_callback, user=None):
         await progress_callback(30)
         await progress_callback(70)
         # 模拟产物落盘(避免 serve_output 路径检查失败)
@@ -111,7 +111,7 @@ async def test_worker_success_path(monkeypatch):
 @pytest.mark.asyncio
 async def test_worker_failure_does_not_crash(monkeypatch):
     """✅ recorder 抛异常 → 任务 failed,worker 循环不受影响。"""
-    async def boom(dsl, job_id, user_id, session_id, progress_callback):
+    async def boom(dsl, job_id, user_id, session_id, progress_callback, user=None):
         raise RuntimeError("simulated ffmpeg crash")
 
     monkeypatch.setattr(queue.recorder, "render_video", boom)
@@ -126,7 +126,7 @@ async def test_worker_failure_does_not_crash(monkeypatch):
     assert status["finished_at"] is not None
 
     # worker 还能继续处理下一个任务
-    async def ok(dsl, job_id, user_id, session_id, progress_callback):
+    async def ok(dsl, job_id, user_id, session_id, progress_callback, user=None):
         from app.storage import output_path, OUTPUT_EXT
         p = output_path(user_id, session_id, job_id, OUTPUT_EXT)
         p.parent.mkdir(parents=True, exist_ok=True)

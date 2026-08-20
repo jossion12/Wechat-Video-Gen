@@ -32,6 +32,12 @@ export interface Message {
   cover_url: string | null; // optional video cover
   duration: string | null; // e.g. '0:10' for video
   delay_ms: number; // default 1500
+  align: 'left' | 'right' | null; // null = 按旧规则自动推断
+}
+
+export interface WatermarkConfig {
+  enabled: boolean; // default true
+  text: string; // supports {date} placeholder, rendered as YYYY-MM-DD
 }
 
 /** 聊天场景配置。 */
@@ -48,6 +54,7 @@ export interface ChatScene {
   muted: boolean; // show mute bell in group header
   participants: Participant[]; // at least 2
   messages: Message[]; // at least 1, ≤30
+  watermark: WatermarkConfig;
 }
 
 /** 视频生成顶层 DSL。 */

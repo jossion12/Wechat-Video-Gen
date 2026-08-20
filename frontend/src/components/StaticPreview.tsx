@@ -19,8 +19,16 @@ function getInitial(name: string, id: string): string {
   return (name || id).slice(0, 1).toUpperCase();
 }
 
-function isMe(senderId: string, participants: Participant[]): boolean {
-  return participants.length > 0 && senderId === participants[0].id;
+function defaultIsRight(senderId: string, participants: Participant[], mode: ChatScene['mode']): boolean {
+  if (participants.length === 0) return false;
+  if (mode === 'single') return senderId === participants[0].id;
+  return senderId === 'me';
+}
+
+function isRightSide(message: Message, participants: Participant[], mode: ChatScene['mode']): boolean {
+  if (message.align === 'right') return true;
+  if (message.align === 'left') return false;
+  return defaultIsRight(message.sender_id, participants, mode);
 }
 
 function findParticipant(id: string, participants: Participant[]): Participant | undefined {
@@ -210,9 +218,11 @@ function ParticipantAvatarRow({ participants }: { participants: Participant[] })
 function MessageListPreview({
   messages,
   participants,
+  mode,
 }: {
   messages: Message[];
   participants: Participant[];
+  mode: ChatScene['mode'];
 }) {
   const visible = messages.slice(0, 8);
   if (visible.length === 0) {
@@ -229,19 +239,16 @@ function MessageListPreview({
           );
         }
         const sender = findParticipant(m.sender_id, participants);
-        const me = isMe(m.sender_id, participants);
+        const right = isRightSide(m, participants, mode);
         return (
-          <div key={i} className={`sp-message${me ? ' sp-message--me' : ''}`}>
-            {!me && <Avatar participant={sender} fallbackId={m.sender_id} small />}
+          <div key={i} className={`sp-message${right ? ' sp-message--me' : ''}`}>
+            <Avatar participant={sender} fallbackId={m.sender_id} small />
             <div className="sp-bubble">
               {m.kind === 'text' && <span>{m.text || ' '}</span>}
               {m.kind === 'image' && <span className="sp-bubble-media">图片</span>}
               {m.kind === 'video' && <span className="sp-bubble-media">▶ 视频</span>}
               {m.kind === 'emoji' && <span>{m.text || 'emoji'}</span>}
             </div>
-            {me && participants[0] && (
-              <Avatar participant={participants[0]} fallbackId={participants[0].id} small />
-            )}
           </div>
         );
       })}
@@ -292,7 +299,7 @@ function Step4Preview({ scene }: { scene: ChatScene }) {
       <StatusBarPreview statusBar={scene.status_bar} />
       <ChatHeader scene={scene} />
       <ChatContent scene={scene}>
-        <MessageListPreview messages={scene.messages} participants={scene.participants} />
+        <MessageListPreview messages={scene.messages} participants={scene.participants} mode={scene.mode} />
       </ChatContent>
     </>
   );

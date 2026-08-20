@@ -8,7 +8,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.dsl import ChatScene, VideoDSL, auto_duration
-from app.models import Message
+from app.models import Message, UserInfo
 from app.storage import BASE_URL
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -81,14 +81,23 @@ def build_participants(config: ChatScene) -> list[dict]:
     ]
 
 
-def _is_self(config: ChatScene, sender_id: str) -> bool:
-    """消息方向规则(D3):
+def _default_is_self(config: ChatScene, sender_id: str) -> bool:
+    """消息方向默认规则(D3):
     - 单聊:participants[0] 视为"我",其消息走右侧
     - 群聊:仅 id == "me" 的参与者走右侧
     """
     if config.mode == "single":
         return config.participants[0].id == sender_id
     return sender_id == "me"
+
+
+def _is_self(config: ChatScene, message: Message) -> bool:
+    """返回消息是否走右侧;若消息显式指定 align 则优先使用,否则按默认规则推断。"""
+    if message.align == "right":
+        return True
+    if message.align == "left":
+        return False
+    return _default_is_self(config, message.sender_id)
 
 
 def build_messages(config: ChatScene) -> list[dict]:
@@ -143,7 +152,7 @@ def build_messages(config: ChatScene) -> list[dict]:
             continue
 
         sender = by_id[m.sender_id]
-        is_self = _is_self(config, m.sender_id)
+        is_self = _is_self(config, m)
         out.append(
             {
                 "dom_id": f"m{i}",
@@ -205,11 +214,23 @@ def resolve_duration_ms(config: ChatScene) -> int:
     return auto_duration(config.messages, first_delay_ms=first_delay_ms)
 
 
-def render_chat_wechat(scene: ChatScene) -> str:
+def _format_watermark_text(template: str) -> str:
+    """把水印模板中的 {date} 替换为当天日期(YYYY-MM-DD)。"""
+    from datetime import date
+
+    return template.replace("{date}", date.today().isoformat())
+
+
+def render_chat_wechat(scene: ChatScene, user: UserInfo | None = None) -> str:
     """渲染微信聊天场景 HTML。预览与录制共用同一入口(D1)。"""
     tmpl = load_template()
     # 电池电量 0-100 → battery index 0-10,用于挑选用哪张 SVG
     battery_idx = max(0, min(10, round(scene.status_bar.battery_level / 10)))
+    # 未登录/未授权用户默认带飘动水印;注册或充值后可去除飘动水印,但保留右下角 AI 生成水印
+    show_float = (
+        scene.watermark.enabled
+        and (user is None or not user.can_remove_float_watermark)
+    )
     ctx = {
         "config": scene,
         "mode": scene.mode,
@@ -227,14 +248,16 @@ def render_chat_wechat(scene: ChatScene) -> str:
         "duration_ms": resolve_duration_ms(scene),
         "icons": _load_status_bar_icons(),
         "battery_icon": f"battery_{battery_idx}",
+        "show_float_watermark": show_float,
+        "watermark_text": _format_watermark_text(scene.watermark.text),
     }
     return tmpl.render(**ctx)
 
 
-def render_dsl(dsl: VideoDSL) -> str:
+def render_dsl(dsl: VideoDSL, user: UserInfo | None = None) -> str:
     """按 kind + template 分发渲染。"""
     if dsl.kind != "chat":
         raise ValueError(f"unsupported dsl kind: {dsl.kind}")
     if dsl.template == "wechat":
-        return render_chat_wechat(dsl.scene)
+        return render_chat_wechat(dsl.scene, user=user)
     raise ValueError(f"unsupported chat template: {dsl.template}")
