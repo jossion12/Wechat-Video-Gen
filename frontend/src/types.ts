@@ -70,7 +70,7 @@ export interface ChatScene {
   intent: Intent;
   intent_acknowledged: boolean; // must agree to compliance terms
   participants: Participant[]; // at least 2
-  messages: Message[]; // at least 1, ≤30
+  messages: Message[]; // at least 1, ≤100
   watermark: WatermarkConfig;
 }
 
@@ -141,4 +141,19 @@ export interface SessionInfo {
 export interface SessionDetail extends SessionInfo {
   files: FileInfo[];
   jobs: JobSummary[];
+}
+
+export interface ImportedFile {
+  path_in_zip: string;
+  file_id: string;
+  url: string;
+  kind: FileKind;
+  size: number;
+  deduped: boolean;
+}
+
+export interface ImportResponse {
+  dsl: VideoDSL;
+  uploaded_files: ImportedFile[];
+  warnings: string[];
 }

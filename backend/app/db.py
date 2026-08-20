@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS files (
     ext          TEXT NOT NULL,
     size         INTEGER NOT NULL,
     content_type TEXT,
+    md5          TEXT,                       -- 素材去重用(兼容旧数据允许 NULL)
     created_at   REAL NOT NULL,
     FOREIGN KEY (session_id) REFERENCES sessions(id),
     FOREIGN KEY (user_id)    REFERENCES users(id)
@@ -140,6 +141,10 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
             conn.execute("ALTER TABLE users ADD COLUMN registered_at REAL")
         if "paid_at" not in cols:
             conn.execute("ALTER TABLE users ADD COLUMN paid_at REAL")
+    if "files" in existing:
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(files)").fetchall()}
+        if "md5" not in cols:
+            conn.execute("ALTER TABLE files ADD COLUMN md5 TEXT")
 
 
 def init_schema() -> None:
@@ -339,13 +344,14 @@ def insert_file(
     ext: str,
     size: int,
     content_type: str | None,
+    md5: str | None = None,
 ) -> dict:
     now = time.time()
     with _cursor() as cur:
         cur.execute(
-            "INSERT INTO files(id, session_id, user_id, kind, ext, size, content_type, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (file_id, session_id, user_id, kind, ext, size, content_type, now),
+            "INSERT INTO files(id, session_id, user_id, kind, ext, size, content_type, md5, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (file_id, session_id, user_id, kind, ext, size, content_type, md5, now),
         )
     return {
         "id": file_id,
@@ -355,6 +361,7 @@ def insert_file(
         "ext": ext,
         "size": size,
         "content_type": content_type,
+        "md5": md5,
         "created_at": now,
     }
 

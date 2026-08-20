@@ -201,13 +201,15 @@ def is_zip_relative_path(url: str) -> bool:
 
 | 项 | 默认值 | 环境变量 | 说明 |
 |---|---|---|---|
-| zip 本体大小 | 50 MB | `IMPORT_MAX_ZIP_SIZE` | FastAPI 层校验 |
-| 解压后总大小 | 20 MB | `IMPORT_MAX_UNPACKED_SIZE` | 累加 `member.file_size` |
-| 单文件大小 | 2 MB | `MAX_UPLOAD_SIZE`（复用） | 与现有 `/api/upload` 一致 |
+| zip 本体大小 | 200 MB | `IMPORT_MAX_ZIP_SIZE` | FastAPI 层校验 |
+| 解压后总大小 | 500 MB | `IMPORT_MAX_UNPACKED_SIZE` | 累加 `member.file_size`；预留 2.5x buffer 给图片解压 |
+| 单文件大小 | 10 MB | `MAX_UPLOAD_SIZE`（复用） | 与现有 `/api/upload` 一致 |
 | 条目数 | 1000 | `IMPORT_MAX_ENTRIES` | 防解压炸弹 / 慢攻击 |
 | 单层目录深度 | 8 | `IMPORT_MAX_DEPTH` | 防 `a/a/a/.../file.png` 攻击 |
 
 **任何一项超限 → 立即终止，`413 / 400 illegal_package`**。
+
+> **生产部署注意**：`docker-compose.yml` 部署时，浏览器 → nginx → uvicorn → importer，请求体大小在 nginx 层被 `client_max_body_size` 截断（默认 1MB）。**`deploy/nginx.conf` 必须设置 `client_max_body_size ≥ IMPORT_MAX_ZIP_SIZE + 20MB`（预留 multipart buffer）**，否则超过限制的 zip 在 nginx 层返回 `413 Request Entity Too Large`（nginx 标准 HTML 错误页，不是 importer 的结构化 JSON 响应）。详见 [05-deployment.md §5.4.1](./05-deployment.md)。
 
 ## 8.6 安全防护（必读）
 

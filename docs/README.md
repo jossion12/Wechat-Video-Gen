@@ -20,6 +20,7 @@
 | 06 | [acceptance.md](./06-acceptance.md) | 验收标准、测试用例 |
 | 07 | [implementation-steps.md](./07-implementation-steps.md) | 分步实施计划与工时估算 |
 | 08 | [import-package.md](./08-import-package.md) | 压缩包导入功能设计（zip 结构 / 安全防护 / API / 前端 UX） |
+| 09 | [how-to-make-package.md](./09-how-to-make-package.md) | 如何制作压缩包（用户指南 / 分步操作手册） |
 
 ## 快速总览
 

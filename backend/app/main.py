@@ -39,6 +39,7 @@ from app.models import (
     SessionInfo,
     UserInfo,
 )
+from app import importer
 from app.renderer import render_dsl
 from app.storage import (
     ALLOWED_MIME,
@@ -46,6 +47,7 @@ from app.storage import (
     OUTPUT_EXT,
     output_path,
     remove_session,
+    save_upload_bytes,
     upload_path,
     warn_legacy_storage,
 )
@@ -80,6 +82,12 @@ app.add_middleware(
 class RenderRequest(BaseModel):
     dsl: VideoDSL
     session_id: str
+
+
+class ImportResponse(BaseModel):
+    dsl: VideoDSL
+    uploaded_files: list[dict]
+    warnings: list[str]
 
 
 # ---------- 装饰器辅助 ----------
@@ -269,9 +277,15 @@ async def upload(
             413, f"file exceeds {MAX_UPLOAD_SIZE // (1024 * 1024)}MB limit"
         )
 
-    file_id = uuid.uuid4().hex[:26]
-    target = upload_path(user.id, session_id, file_id, ext)
-    target.write_bytes(data)
+    file_id, _, _, content_type = await asyncio.to_thread(
+        save_upload_bytes,
+        user.id,
+        session_id,
+        data,
+        ext,
+        kind,
+        content_type=file.content_type,
+    )
     row = await db.insert_file_async(
         file_id=file_id,
         session_id=session_id,
@@ -279,7 +293,7 @@ async def upload(
         kind=kind,
         ext=ext,
         size=len(data),
-        content_type=file.content_type,
+        content_type=content_type,
     )
     await db.touch_session_async(session_id)
     logger.info(
@@ -287,6 +301,52 @@ async def upload(
         file_id, kind, len(data), user.id, session_id,
     )
     return _file_to_info(row)
+
+
+# ---------- 导入 ----------
+
+@app.post("/api/import", response_model=ImportResponse)
+async def import_package_route(
+    file: UploadFile = File(...),
+    session_id: str = Form(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """导入 zip(DSL + 图片素材)到当前 session,返回改写后的 DSL。"""
+    sess = await asyncio.to_thread(db.get_session, session_id)
+    if sess is None or sess["user_id"] != user.id:
+        raise HTTPException(404, "session not found")
+
+    zip_bytes = await file.read()
+    try:
+        result = await asyncio.to_thread(
+            importer.import_package,
+            zip_bytes=zip_bytes,
+            session_id=session_id,
+            user_id=user.id,
+        )
+    except importer.PackageError as exc:
+        raise HTTPException(exc.http_status, {"code": exc.code, **exc.detail})
+
+    await db.touch_session_async(session_id)
+    logger.info(
+        "Import user=%s session=%s files=%d warnings=%d",
+        user.id, session_id, len(result.uploaded_files), len(result.warnings),
+    )
+    return ImportResponse(
+        dsl=result.dsl,
+        uploaded_files=[
+            {
+                "path_in_zip": f.path_in_zip,
+                "file_id": f.file_id,
+                "url": f.url,
+                "kind": f.kind,
+                "size": f.size,
+                "deduped": f.deduped,
+            }
+            for f in result.uploaded_files
+        ],
+        warnings=result.warnings,
+    )
 
 
 # ---------- 文件 / 产物访问(带所有权校验) ----------

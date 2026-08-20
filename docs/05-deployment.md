@@ -93,6 +93,12 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # 允许最大上传体积(默认 1MB)
+    # 对齐 importer 的 IMPORT_MAX_ZIP_SIZE(200MB)+ multipart 编码 buffer,放宽到 220m
+    # 改了这个值要同步修改后端 IMPORT_MAX_ZIP_SIZE;否则超过 nginx 限制会返回 413
+    client_max_body_size 220m;
+    client_body_timeout 60s;
+
     # 前端静态资源
     location / {
         try_files $uri $uri/ /index.html;
@@ -112,6 +118,18 @@ server {
     location /outputs/ { proxy_pass http://backend:8000; }
 }
 ```
+
+### 5.4.1 上传体积限制链路
+
+当用户上传 zip 调 `/api/import` 时，请求体大小受三处限制，必须全部对齐才不会在中间层被截：
+
+| 层 | 默认 | 位置 | 说明 |
+|---|---|---|---|
+| nginx | **1MB**(默认)→ docker-compose 部署设为 **220MB** | `deploy/nginx.conf` `client_max_body_size` | 超限 → `413 Request Entity Too Large`(nginx 标准错误页) |
+| uvicorn / FastAPI | 无内置限制 | `CMD ["uvicorn", ...]` | 透传所有请求体 |
+| importer | `IMPORT_MAX_ZIP_SIZE` 默认 **200MB** | `backend/app/importer.py` | 超限 → `413 package_too_large`(结构化 JSON 响应) |
+
+> **调整顺序**：改 importer 上限 → 必须同步改 nginx `client_max_body_size` (留 ≥10MB buffer 给 multipart)。
 
 ## 5.5 单机部署(最简)
 
@@ -241,12 +259,17 @@ logging.basicConfig(
 | `WORKER_COUNT` | 2 | 并发 worker 数 |
 | `LOG_LEVEL` | info | 日志级别 |
 | `MAX_QUEUE_SIZE` | 100 | 队列上限,超过返回 503 |
-| `MAX_UPLOAD_SIZE` | 2097152 | 单文件 2MB |
+| `MAX_UPLOAD_SIZE` | 10485760 | 单文件 10MB;同时被 `/api/upload` 与 importer 复用为 zip 内单文件上限 |
 | `STORAGE_DIR` | `./storage` | 文件存储根；DB 与分用户文件夹都在此目录下 |
 | `DEBUG` | false | 调试模式(写 preview.html 到 /tmp) |
 | `AUTH_REQUIRED` | `true` | 是否强制鉴权。**生产必须保持 `true`**；本地 dev / demo 可设 `false` 跳过鉴权(详见 §5.14) |
 | `ANONYMOUS_USER_ID` | `anonymous` | `AUTH_REQUIRED=false` 时所有匿名请求归属的 user_id |
 | `ANONYMOUS_USER_NAME` | `anonymous` | 同上的 username |
+| `IMPORT_MAX_ZIP_SIZE` | 209715200 | importer zip 本体上限(200MB);**nginx `client_max_body_size` 必须 ≥ 此值** |
+| `IMPORT_MAX_UNPACKED_SIZE` | 524288000 | importer 解压后总上限(500MB,给图片解压预留 buffer) |
+| `IMPORT_MAX_ENTRIES` | 1000 | importer zip 条目数上限 |
+| `IMPORT_MAX_DEPTH` | 8 | importer zip 嵌套深度上限 |
+| `IMPORT_MAX_COMPRESSION_RATIO` | 100 | importer 单文件压缩比阈值(防 zip bomb) |
 
 ## 5.13 多用户 / session 隔离
 

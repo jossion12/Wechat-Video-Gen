@@ -1,5 +1,6 @@
 import type {
   FileInfo,
+  ImportResponse,
   JobStatusResponse,
   RenderJobEvent,
   SessionDetail,
@@ -45,6 +46,13 @@ async function requestJson<T>(
         const first = body.detail[0] as { msg?: string } | undefined;
         if (first && typeof first.msg === 'string') {
           detail = first.msg.replace(/^Value error,\s*/i, '');
+        }
+      } else if (typeof body.detail === 'object' && body.detail !== null) {
+        // /api/import 等接口返回的结构化错误: { code, reason, missing, ... }
+        const d = body.detail as { code?: string; reason?: string; missing?: string[] };
+        detail = d.reason || d.code || detail;
+        if (Array.isArray(d.missing) && d.missing.length) {
+          detail += `：${d.missing.join(', ')}`;
         }
       }
     } catch {
@@ -189,5 +197,16 @@ export async function getSessionDetail(sessionId: string): Promise<SessionDetail
 export async function deleteSession(sessionId: string): Promise<void> {
   await requestJson<null>(`/api/sessions/${encodeURIComponent(sessionId)}`, {
     method: 'DELETE',
+  });
+}
+
+/** 导入 zip（DSL + 图片素材）到当前 session。 */
+export async function importZip(file: File, sessionId: string): Promise<ImportResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('session_id', sessionId);
+  return requestJson<ImportResponse>('/api/import', {
+    method: 'POST',
+    body: form,
   });
 }

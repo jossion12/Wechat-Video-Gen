@@ -18,6 +18,11 @@ interface WizardLayoutProps {
   footerLeft: ReactNode;
   footerRight: ReactNode;
   hint: StepHint | null;
+  className?: string;
+  style?: React.CSSProperties;
+  onDragOver?: React.DragEventHandler<HTMLDivElement>;
+  onDragLeave?: React.DragEventHandler<HTMLDivElement>;
+  onDrop?: React.DragEventHandler<HTMLDivElement>;
 }
 
 /**
@@ -34,9 +39,20 @@ export function WizardLayout({
   footerLeft,
   footerRight,
   hint,
+  className,
+  style,
+  onDragOver,
+  onDragLeave,
+  onDrop,
 }: WizardLayoutProps) {
   return (
-    <div className="wizard-layout">
+    <div
+      className={`wizard-layout${className ? ` ${className}` : ''}`}
+      style={style}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <Stepper steps={steps} currentStep={currentStep} onStepClick={onStepClick} />
       <div className="wizard-scroll">
         <main className="wizard-main">

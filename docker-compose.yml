@@ -11,9 +11,11 @@ services:
     environment:
       - WORKER_COUNT=2
       - LOG_LEVEL=info
-      - MAX_UPLOAD_SIZE=10485760   # 10MB,和前端 nginx 上限对齐
+      - MAX_UPLOAD_SIZE=10485760   # 10MB,与后端默认一致;importer 复用此值作为 zip 内单文件上限
       - AUTH_REQUIRED=false         # 生产必须 true;本地 dev 改 false
       # - BASE_URL=http://localhost:8000  # 上传资源转绝对 URL;部署到域名时修改
+      # - IMPORT_MAX_ZIP_SIZE=209715200  # zip 本体上限(默认 200MB);nginx client_max_body_size 需 ≥ 此值
+      # - IMPORT_MAX_UNPACKED_SIZE=524288000  # 解压后总上限(默认 500MB)
     restart: unless-stopped
 
   frontend:

@@ -95,7 +95,7 @@ class ChatScene(BaseModel):
 | `intent` | string | ✓ | — | 创作意图，必须为 `short_video_drama` / `story_visualization` / `teaching_simulation` / `meme_sticker` |
 | `intent_acknowledged` | bool | ✓ | `false` | 必须显式勾选合规承诺 |
 | `participants` | 数组 | ✓ | — | 至少 2 项 |
-| `messages` | 数组 | ✓ | — | 至少 1 项，建议 ≤ 30 条 |
+| `messages` | 数组 | ✓ | — | 至少 1 项，建议 ≤ 100 条 |
 | `watermark` | WatermarkConfig | ✗ | 见下 | AI 生成标识配置，不可关闭 |
 
 ### `WatermarkConfig`

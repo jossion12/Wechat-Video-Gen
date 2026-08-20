@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import uuid
 from pathlib import Path
 
 logger = logging.getLogger("storage")
@@ -31,7 +32,7 @@ logger = logging.getLogger("storage")
 STORAGE_DIR = Path(os.getenv("STORAGE_DIR", Path(__file__).parent.parent / "storage"))
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
-MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", "2097152"))  # 2MB
+MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", "10485760"))  # 10MB
 
 # 上传资源在 HTML 中被引用为相对路径 /uploads/xxx;
 # 录制/预览时需要绝对 URL 才能被浏览器加载。
@@ -44,6 +45,15 @@ ALLOWED_MIME: dict[str, str] = {
     "image/jpeg": "jpg",
     "image/webp": "webp",
     "image/gif": "gif",
+}
+
+# 扩展名 → MIME(用于从文件扩展名推断 content_type)
+EXT_TO_MIME: dict[str, str] = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "webp": "image/webp",
+    "gif": "image/gif",
 }
 
 OUTPUT_EXT = "mp4"
@@ -73,6 +83,30 @@ def output_dir(user_id: str, session_id: str) -> Path:
 
 def upload_path(user_id: str, session_id: str, file_id: str, ext: str) -> Path:
     return upload_dir(user_id, session_id) / f"{file_id}.{ext}"
+
+
+def save_upload_bytes(
+    user_id: str,
+    session_id: str,
+    data: bytes,
+    ext: str,
+    kind: str,
+    file_id: str | None = None,
+    content_type: str | None = None,
+) -> tuple[str, Path, str, str | None]:
+    """把上传字节写入磁盘并返回 (file_id, path, ext, content_type)。
+
+    不操作数据库 —— 调用方负责 insert_file。路径生成与 /api/upload 保持一致。
+    """
+    if ext not in EXT_TO_MIME:
+        raise ValueError(f"unsupported ext: {ext}")
+    if content_type is None:
+        content_type = EXT_TO_MIME.get(ext)
+    fid = file_id or uuid.uuid4().hex[:26]
+    target = upload_path(user_id, session_id, fid, ext)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    return fid, target, ext, content_type
 
 
 def output_path(user_id: str, session_id: str, job_id: str, ext: str = OUTPUT_EXT) -> Path:

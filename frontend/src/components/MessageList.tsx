@@ -3,7 +3,7 @@ import type { Message, MessageKind, Participant } from '../types';
 import { AvatarPicker } from './common/AvatarPicker';
 
 const SYSTEM_ID = '__system__';
-const MAX_MESSAGES = 30;
+const MAX_MESSAGES = 100;
 
 const KIND_OPTIONS: { value: MessageKind; label: string }[] = [
   { value: 'text', label: '文字' },

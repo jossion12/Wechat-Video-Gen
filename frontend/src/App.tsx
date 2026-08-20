@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { createSession, submitRender } from './api';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createSession, importZip, submitRender } from './api';
 import type { ChatScene, Message, Participant, VideoDSL } from './types';
 import { THEME_DEFAULT_BACKGROUND } from './types';
 import { validateConfig } from './validate';
@@ -138,6 +138,10 @@ export default function App() {
   const [currentStep, setCurrentStep] = useState(1);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -222,6 +226,52 @@ export default function App() {
     }
   };
 
+  const handleImportFile = useCallback(
+    async (file: File) => {
+      if (!sessionId) {
+        setImportError('会话未就绪，无法导入');
+        return;
+      }
+      if (!file.name.toLowerCase().endsWith('.zip')) {
+        setImportError('仅支持 .zip 文件');
+        return;
+      }
+      setImporting(true);
+      setImportError(null);
+      try {
+        const result = await importZip(file, sessionId);
+        setDsl(result.dsl);
+        setJobId(null);
+        setCurrentStep(5);
+      } catch (err) {
+        setImportError(err instanceof Error ? err.message : '导入失败');
+      } finally {
+        setImporting(false);
+      }
+    },
+    [sessionId],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      if (importing) return;
+      const file = e.dataTransfer.files?.[0];
+      if (file) handleImportFile(file);
+    },
+    [handleImportFile, importing],
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOver(false);
+  }, []);
+
   const stepError = useMemo(
     () => getStepError(currentStep, dsl.scene),
     [currentStep, dsl.scene],
@@ -290,7 +340,27 @@ export default function App() {
           用对话形式讲述你的故事
           {sessionId && <code className="session-tag">session: {sessionId.slice(0, 8)}…</code>}
         </span>
+        <input
+          type="file"
+          accept=".zip"
+          ref={importInputRef}
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleImportFile(file);
+            e.target.value = '';
+          }}
+        />
+        <button
+          type="button"
+          className="btn"
+          disabled={importing || !sessionId}
+          onClick={() => importInputRef.current?.click()}
+        >
+          {importing ? '导入中…' : '导入 zip'}
+        </button>
       </header>
+      {importError && <div className="error-banner">{importError}</div>}
       <WizardLayout
         steps={STEPS}
         currentStep={currentStep}
@@ -305,11 +375,16 @@ export default function App() {
         }
         extraPreview={currentStep === TOTAL_STEPS ? <ProgressPanel jobId={jobId} /> : null}
         hint={hint}
+        className={dragOver ? 'wizard-layout--dragover' : undefined}
+        style={importing ? { pointerEvents: 'none', opacity: 0.6 } : undefined}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         footerLeft={
           <button
             type="button"
             className="btn"
-            disabled={currentStep === 1}
+            disabled={currentStep === 1 || importing}
             onClick={() => setCurrentStep((s) => Math.max(1, s - 1))}
           >
             上一步
@@ -320,7 +395,7 @@ export default function App() {
             <button
               type="button"
               className="btn btn-primary"
-              disabled={submitting || !!stepError || !sessionId}
+              disabled={submitting || !!stepError || !sessionId || importing}
               onClick={() => void handleRender()}
             >
               {submitting ? '提交中…' : '生成视频'}
@@ -329,7 +404,7 @@ export default function App() {
             <button
               type="button"
               className="btn btn-primary"
-              disabled={!!stepError}
+              disabled={!!stepError || importing}
               onClick={() => setCurrentStep((s) => Math.min(TOTAL_STEPS, s + 1))}
             >
               下一步
