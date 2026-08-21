@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "kind": "chat",
+  "template": "noir",
+  "scene": {
+    "mode": "single",
+    "title": "午夜讲堂",
+    "background": "#f5f0e1",
+    "background_image_url": null,
+    "style_theme": "noir",
+    "intent": "teaching_simulation",
+    "intent_acknowledged": true,
+    "participants": [
+      { "id": "me", "name": "我", "avatar_url": null, "persona": "哲学讲师" },
+      { "id": "student", "name": "学生", "avatar_url": null, "persona": "求知者" }
+    ],
+    "messages": [
+      { "sender_id": "__system__", "kind": "sys", "text": "第一幕：关于自由", "delay_ms": 1800 },
+      { "sender_id": "student", "kind": "text", "text": "老师，什么是自由？", "delay_ms": 1600 },
+      { "sender_id": "me", "kind": "text", "text": "自由不是想做什么就做什么。", "delay_ms": 1700 },
+      { "sender_id": "student", "kind": "text", "text": "那是什么？", "delay_ms": 1600 },
+      { "sender_id": "me", "kind": "text", "text": "自由是，不想做什么时，可以说不。", "delay_ms": 1800 },
+      { "sender_id": "me", "kind": "emoji", "text": "🎭", "delay_ms": 1400 }
+    ],
+    "watermark": {
+      "text": "本内容由 AI 生成 · 仅供创意表达",
+      "badge_style": "minimal"
+    }
+  }
+}

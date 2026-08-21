@@ -237,6 +237,6 @@ def render_dsl(dsl: VideoDSL) -> str:
     """按 kind + template 分发渲染。"""
     if dsl.kind != "chat":
         raise ValueError(f"unsupported dsl kind: {dsl.kind}")
-    if dsl.template not in ("cyberpunk", "watercolor", "pixel", "comic"):
+    if dsl.template not in ("cyberpunk", "watercolor", "pixel", "comic", "noir"):
         raise ValueError(f"unsupported chat template: {dsl.template}")
     return render_chat(dsl.scene, dsl.template)

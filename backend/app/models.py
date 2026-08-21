@@ -55,12 +55,13 @@ PLATFORM_NAMES = [
 AI_BADGE_STYLES = ["neon", "minimal", "retro"]
 
 # 视觉风格模板
-STYLE_THEMES = ["cyberpunk", "watercolor", "pixel", "comic"]
+STYLE_THEMES = ["cyberpunk", "watercolor", "pixel", "comic", "noir"]
 STYLE_THEME_LABELS = {
     "cyberpunk": "赛博朋克",
     "watercolor": "手绘",
     "pixel": "复古",
     "comic": "漫画",
+    "noir": "黑白胶片",
 }
 
 

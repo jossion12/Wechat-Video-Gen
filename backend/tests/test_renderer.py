@@ -510,3 +510,198 @@ def test_platform_name_rejected():
         make_dsl(
             messages=[Message(sender_id="me", kind="text", text="这个微信截图", delay_ms=1500)]
         )
+
+
+# ---- noir 主题测试 ----
+
+
+def make_noir_dsl(**overrides) -> VideoDSL:
+    return VideoDSL(template="noir", scene=make_scene(style_theme="noir", **overrides))
+
+
+def test_noir_minimal_config_renders_valid_html():
+    """✅ noir 最小配置渲染出合法 HTML。"""
+    dsl = make_noir_dsl(
+        messages=[Message(sender_id="her", kind="text", text="你好", delay_ms=1500)],
+    )
+    html = render_dsl(dsl)
+    assert html.strip().startswith("<!DOCTYPE html>")
+    assert "<html" in html and "</html>" in html
+    assert "<body" in html and "</body>" in html
+    assert "你好" in html
+    assert 'id="m1"' in html
+    assert "<title>Dialogue Theater — Noir</title>" in html
+
+
+def test_noir_self_message():
+    """✅ noir 单聊模式自己消息带 .msg.self。"""
+    html = render_dsl(make_noir_dsl())
+    assert _has_class(html, "div", "m1", "self")
+    assert _has_class(html, "div", "m2", "msg")
+    assert _has_class(html, "div", "m3", "self")
+
+
+def test_noir_image_message():
+    """✅ noir 图片消息生成 img 并强制灰阶。"""
+    dsl = make_noir_dsl(
+        messages=[
+            Message(
+                sender_id="me",
+                kind="image",
+                image_url="/uploads/plum.jpg",
+                text="霓虹下的梅花开了。",
+                delay_ms=1500,
+            )
+        ]
+    )
+    html = render_dsl(dsl)
+    assert f'<img src="{BASE_URL}/uploads/plum.jpg"' in html
+    assert "霓虹下的梅花开了。" in html
+    assert "grayscale(1)" in html
+
+
+def test_noir_video_message():
+    """✅ noir 视频消息渲染播放按钮和时长。"""
+    dsl = make_noir_dsl(
+        messages=[
+            Message(
+                sender_id="her",
+                kind="video",
+                video_url="/uploads/video.mp4",
+                cover_url="/uploads/cover.jpg",
+                duration="0:10",
+                delay_ms=1500,
+            )
+        ]
+    )
+    html = render_dsl(dsl)
+    assert "video-bubble" in html
+    assert "video-play" in html
+    assert "0:10" in html
+    assert "cover.jpg" in html
+
+
+def test_noir_emoji_message():
+    """✅ noir emoji 消息渲染为大表情并强制灰阶。"""
+    dsl = make_noir_dsl(
+        messages=[Message(sender_id="her", kind="emoji", text="🤔", delay_ms=1500)]
+    )
+    html = render_dsl(dsl)
+    assert 'class="msg emoji' in html
+    assert "🤔" in html
+    assert 'emoji-text' in html
+    assert "grayscale(1)" in html
+
+
+def test_noir_timestamp_message():
+    """✅ noir 时间戳渲染为 .time-stamp。"""
+    dsl = make_noir_dsl(
+        messages=[
+            Message(sender_id="__system__", kind="timestamp", text="12:47 AM", delay_ms=1500),
+            Message(sender_id="her", kind="text", text="你好", delay_ms=1500),
+        ]
+    )
+    html = render_dsl(dsl)
+    assert 'class="time-stamp"' in html
+    assert "12:47 AM" in html
+    m1_match = re.search(r'<div class="time-stamp" id="m1"[^>]*>.*?</div>', html, re.S)
+    assert m1_match
+    assert 'class="avatar' not in m1_match.group(0)
+
+
+def test_noir_sys_message():
+    """✅ noir 系统消息渲染为幕间字幕，显示 REEL 序号，无头像。"""
+    dsl = make_noir_dsl(
+        messages=[
+            Message(sender_id="__system__", kind="sys", text="ACT II · NIGHT", delay_ms=1500)
+        ]
+    )
+    html = render_dsl(dsl)
+    assert re.search(r'class="sys-msg\b', html)
+    assert "REEL 01" in html
+    assert "ACT II · NIGHT" in html
+    assert 'class="avatar' not in html
+
+
+def test_noir_timeline_includes_disclaimer_card():
+    """✅ noir TIMELINE 开头固定包含 1 秒 AI 声明卡。"""
+    dsl = make_noir_dsl()
+    timeline = build_timeline(dsl.scene)
+    assert timeline[0] == {"id": "__disclaimer__", "at": 0, "type": "disclaimer"}
+
+
+def test_noir_consecutive_messages_show_avatar():
+    """✅ noir 同一发送者连续消息也显示头像。"""
+    dsl = make_noir_dsl(
+        messages=[
+            Message(sender_id="her", kind="text", text="第一条", delay_ms=1500),
+            Message(sender_id="her", kind="text", text="第二条", delay_ms=1500),
+        ]
+    )
+    html = render_dsl(dsl)
+    assert 'id="m1"' in html
+    assert 'id="m2"' in html
+    assert html.count('<div class="avatar avatar-default">') == 2
+
+
+def test_noir_missing_avatar_uses_default_placeholder():
+    """✅ noir 缺头像 URL 用圆角正方形占位。"""
+    dsl = make_noir_dsl(
+        participants=[
+            Participant(id="me", name="我", avatar_url=None, persona=""),
+            Participant(id="her", name="她", avatar_url=None, persona=""),
+        ]
+    )
+    html = render_dsl(dsl)
+    assert 'class="avatar avatar-default"' in html
+
+
+def test_noir_ai_badge_rendered():
+    """✅ noir AI 角标始终渲染。"""
+    dsl = make_noir_dsl()
+    html = render_dsl(dsl)
+    assert 'class="ai-badge' in html
+    assert "AI" in html or "生成" in html
+
+
+def test_noir_reply_quote_renders():
+    """✅ noir 带 reply_to 的消息渲染 .reply-quote。"""
+    dsl = make_noir_dsl(
+        messages=[
+            Message(sender_id="her", kind="text", text="原始消息内容", delay_ms=1500),
+            Message(sender_id="me", kind="text", text="这是回复", delay_ms=1500, reply_to=1),
+        ]
+    )
+    html = render_dsl(dsl)
+    assert 'class="reply-quote"' in html
+    assert "原始消息内容" in html
+    assert "她" in html
+    assert "data-reply-to=\"m1\"" in html
+
+
+def test_noir_no_colorful_hex():
+    """✅ noir 模板产物只含灰阶（允许设计文档中明确的象牙白纸色 #f5f0e1）。"""
+    # 使用中性灰背景，避免用户传入的背景色干扰判断
+    background = "#c7c7c7"
+    dsl = make_noir_dsl(
+        background=background,
+        messages=[
+            Message(sender_id="her", kind="text", text="你好", delay_ms=1500),
+            Message(sender_id="me", kind="emoji", text="🎭", delay_ms=1500),
+            Message(sender_id="__system__", kind="sys", text="ACT I", delay_ms=1500),
+        ],
+    )
+    html = render_dsl(dsl)
+    html_for_check = html.replace(background, "")
+    # 允许设计文档中明确使用的象牙白纸色 #f5f0e1（严格来说不是纯灰阶）
+    allowed_non_grayscale = {"#f5f0e1"}
+    for match in re.finditer(r"#([0-9a-fA-F]{3}){1,2}\b", html_for_check):
+        color = match.group(0).lower()
+        if color in allowed_non_grayscale:
+            continue
+        hex_val = color.lstrip("#")
+        if len(hex_val) == 3:
+            r, g, b = hex_val[0] * 2, hex_val[1] * 2, hex_val[2] * 2
+        else:
+            r, g, b = hex_val[0:2], hex_val[2:4], hex_val[4:6]
+        assert r == g == b, f"noir theme contains non-grayscale color: {color}"
