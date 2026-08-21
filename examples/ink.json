@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "kind": "chat",
+  "template": "ink",
+  "scene": {
+    "mode": "single",
+    "title": "风起云隐",
+    "background": "#f4ecd8",
+    "background_image_url": null,
+    "style_theme": "ink",
+    "intent": "story_visualization",
+    "intent_acknowledged": true,
+    "participants": [
+      { "id": "me", "name": "我", "avatar_url": null, "persona": "剑宗长老" },
+      { "id": "disciple", "name": "弟子", "avatar_url": null, "persona": "守山弟子" }
+    ],
+    "messages": [
+      { "sender_id": "__system__", "kind": "sys", "text": "风起云隐", "delay_ms": 1800 },
+      { "sender_id": "disciple", "kind": "text", "text": "师父，山门有变。", "delay_ms": 1600 },
+      { "sender_id": "me", "kind": "text", "text": "何事惊慌？", "delay_ms": 1700 },
+      { "sender_id": "disciple", "kind": "text", "text": "后山禁地，有剑气冲天。", "delay_ms": 1800 },
+      { "sender_id": "me", "kind": "text", "text": "带我去看看。", "delay_ms": 1700 },
+      { "sender_id": "me", "kind": "emoji", "text": "🗡️", "delay_ms": 1400 }
+    ],
+    "watermark": {
+      "text": "本内容由 AI 生成 · 仅供创意表达",
+      "badge_style": "retro"
+    }
+  }
+}

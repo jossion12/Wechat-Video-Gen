@@ -38,6 +38,20 @@ def resolve_upload_url(url: str | None) -> str | None:
     return f"{BASE_URL}/{url}"
 
 
+def _avatar_rotation(id: str) -> float:
+    """基于 id 生成确定性头像旋转角，范围 [-3, +3] 度。"""
+    return float((sum(ord(c) for c in id) % 7) - 3)
+
+
+def _seal_char(text: str | None) -> str:
+    """系统消息印章文字：取 sys.text 首字；非 CJK 时回退固定"印"字。"""
+    if text:
+        first = text[0]
+        if "\u4e00" <= first <= "\u9fff":
+            return first
+    return "印"
+
+
 def build_participants(config: ChatScene) -> list[dict]:
     """把参与者展平成模板需要的结构;头像 URL 补成绝对路径。"""
     return [
@@ -47,6 +61,7 @@ def build_participants(config: ChatScene) -> list[dict]:
             "avatar_url": resolve_upload_url(p.avatar_url),
             "persona": p.persona,
             "css_class": p.id,
+            "avatar_rotation": _avatar_rotation(p.id),
         }
         for p in config.participants
     ]
@@ -106,6 +121,8 @@ def build_messages(config: ChatScene) -> list[dict]:
                     "sender_id": m.sender_id,
                     "sender_name": "",
                     "sender_avatar": None,
+                    "sender_avatar_rotation": 0.0,
+                    "seal_char": _seal_char(m.text),
                     "persona": None,
                     "text": m.text,
                     "image_url": None,
@@ -130,6 +147,7 @@ def build_messages(config: ChatScene) -> list[dict]:
                     "sender_id": m.sender_id,
                     "sender_name": "",
                     "sender_avatar": None,
+                    "sender_avatar_rotation": 0.0,
                     "persona": None,
                     "text": m.text,
                     "image_url": None,
@@ -155,6 +173,7 @@ def build_messages(config: ChatScene) -> list[dict]:
                 "sender_id": m.sender_id,
                 "sender_name": sender.name,
                 "sender_avatar": resolve_upload_url(sender.avatar_url),
+                "sender_avatar_rotation": _avatar_rotation(m.sender_id),
                 "persona": sender.persona,
                 "text": m.text,
                 "image_url": resolve_upload_url(m.image_url),
@@ -237,6 +256,6 @@ def render_dsl(dsl: VideoDSL) -> str:
     """按 kind + template 分发渲染。"""
     if dsl.kind != "chat":
         raise ValueError(f"unsupported dsl kind: {dsl.kind}")
-    if dsl.template not in ("cyberpunk", "watercolor", "pixel", "comic", "noir"):
+    if dsl.template not in ("cyberpunk", "watercolor", "pixel", "comic", "noir", "ink"):
         raise ValueError(f"unsupported chat template: {dsl.template}")
     return render_chat(dsl.scene, dsl.template)

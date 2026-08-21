@@ -705,3 +705,251 @@ def test_noir_no_colorful_hex():
         else:
             r, g, b = hex_val[0:2], hex_val[2:4], hex_val[4:6]
         assert r == g == b, f"noir theme contains non-grayscale color: {color}"
+
+
+# ---- ink 主题测试 ----
+
+
+INK_ALLOWED_COLORS = {
+    "#f4ecd8",
+    "#fcfaf2",
+    "#1a1a1a",
+    "#4a4a4a",
+    "#8a8578",
+    "#b8332b",
+    "#8a2520",
+    "#ffffff",
+    # 3 位简写
+    "#fff",
+    "#000",
+}
+
+
+def make_ink_dsl(**overrides) -> VideoDSL:
+    return VideoDSL(template="ink", scene=make_scene(style_theme="ink", **overrides))
+
+
+def test_ink_minimal_config_renders_valid_html():
+    """✅ ink 最小配置渲染出合法 HTML。"""
+    dsl = make_ink_dsl(
+        messages=[Message(sender_id="her", kind="text", text="你好", delay_ms=1500)],
+    )
+    html = render_dsl(dsl)
+    assert html.strip().startswith("<!DOCTYPE html>")
+    assert "<html" in html and "</html>" in html
+    assert "<body" in html and "</body>" in html
+    assert "你好" in html
+    assert 'id="m1"' in html
+    assert "<title>Dialogue Theater — Ink</title>" in html
+
+
+def test_ink_self_message():
+    """✅ ink 单聊模式自己消息带 .msg.self。"""
+    html = render_dsl(make_ink_dsl())
+    assert _has_class(html, "div", "m1", "self")
+    assert _has_class(html, "div", "m2", "msg")
+    assert _has_class(html, "div", "m3", "self")
+
+
+def test_ink_image_message():
+    """✅ ink 图片消息生成 img 并带 sepia 滤镜。"""
+    dsl = make_ink_dsl(
+        messages=[
+            Message(
+                sender_id="me",
+                kind="image",
+                image_url="/uploads/plum.jpg",
+                text="梅花开了。",
+                delay_ms=1500,
+            )
+        ]
+    )
+    html = render_dsl(dsl)
+    assert f'<img src="{BASE_URL}/uploads/plum.jpg"' in html
+    assert "梅花开了。" in html
+    assert "sepia(0.25)" in html
+
+
+def test_ink_video_message():
+    """✅ ink 视频消息渲染播放按钮和时长。"""
+    dsl = make_ink_dsl(
+        messages=[
+            Message(
+                sender_id="her",
+                kind="video",
+                video_url="/uploads/video.mp4",
+                cover_url="/uploads/cover.jpg",
+                duration="0:10",
+                delay_ms=1500,
+            )
+        ]
+    )
+    html = render_dsl(dsl)
+    assert "video-bubble" in html
+    assert "video-play" in html
+    assert "0:10" in html
+    assert "cover.jpg" in html
+
+
+def test_ink_emoji_message():
+    """✅ ink emoji 消息渲染为大表情并保留颜色。"""
+    dsl = make_ink_dsl(
+        messages=[Message(sender_id="her", kind="emoji", text="🤔", delay_ms=1500)]
+    )
+    html = render_dsl(dsl)
+    assert 'class="msg emoji' in html
+    assert "🤔" in html
+    assert 'emoji-text' in html
+    assert "drop-shadow(2px 2px 0" in html
+
+
+def test_ink_timestamp_message():
+    """✅ ink 时间戳渲染为 .time-stamp。"""
+    dsl = make_ink_dsl(
+        messages=[
+            Message(sender_id="__system__", kind="timestamp", text="星期日 · 14:30", delay_ms=1500),
+            Message(sender_id="her", kind="text", text="你好", delay_ms=1500),
+        ]
+    )
+    html = render_dsl(dsl)
+    assert 'class="time-stamp"' in html
+    assert "星期日 · 14:30" in html
+    m1_match = re.search(r'<div class="time-stamp" id="m1"[^>]*>.*?</div>', html, re.S)
+    assert m1_match
+    assert 'class="avatar' not in m1_match.group(0)
+
+
+def test_ink_sys_message():
+    """✅ ink 系统消息渲染为朱红方印，无头像。"""
+    dsl = make_ink_dsl(
+        messages=[
+            Message(sender_id="__system__", kind="sys", text="风起云隐", delay_ms=1500)
+        ]
+    )
+    html = render_dsl(dsl)
+    assert 'class="sys-seal"' in html
+    assert "风" in html  # 首字印章
+    assert 'class="avatar' not in html
+
+
+def test_ink_sys_seal_uses_first_char():
+    """✅ ink 系统消息印章优先使用 sys.text 首字，非 CJK 回退"印"。"""
+    dsl_cjk = make_ink_dsl(
+        messages=[Message(sender_id="__system__", kind="sys", text="云涌", delay_ms=1500)]
+    )
+    html_cjk = render_dsl(dsl_cjk)
+    seal_cjk = re.search(
+        r'<div class="sys-seal"[^>]*>.*?<span class="sys-seal-char">(.*?)</span>',
+        html_cjk,
+        re.S,
+    )
+    assert seal_cjk and seal_cjk.group(1).strip() == "云"
+
+    dsl_en = make_ink_dsl(
+        messages=[Message(sender_id="__system__", kind="sys", text="ACT I", delay_ms=1500)]
+    )
+    html_en = render_dsl(dsl_en)
+    seal_en = re.search(
+        r'<div class="sys-seal"[^>]*>.*?<span class="sys-seal-char">(.*?)</span>',
+        html_en,
+        re.S,
+    )
+    assert seal_en and seal_en.group(1).strip() == "印"
+
+
+def test_ink_timeline_includes_disclaimer_card():
+    """✅ ink TIMELINE 开头固定包含 1 秒 AI 声明卡。"""
+    dsl = make_ink_dsl()
+    timeline = build_timeline(dsl.scene)
+    assert timeline[0] == {"id": "__disclaimer__", "at": 0, "type": "disclaimer"}
+
+
+def test_ink_consecutive_messages_show_avatar():
+    """✅ ink 同一发送者连续消息也显示头像。"""
+    dsl = make_ink_dsl(
+        messages=[
+            Message(sender_id="her", kind="text", text="第一条", delay_ms=1500),
+            Message(sender_id="her", kind="text", text="第二条", delay_ms=1500),
+        ]
+    )
+    html = render_dsl(dsl)
+    assert 'id="m1"' in html
+    assert 'id="m2"' in html
+    assert html.count('<div class="avatar avatar-default"') == 2
+
+
+def test_ink_missing_avatar_uses_default_placeholder():
+    """✅ ink 缺头像 URL 用圆形朱印占位。"""
+    dsl = make_ink_dsl(
+        participants=[
+            Participant(id="me", name="我", avatar_url=None, persona=""),
+            Participant(id="her", name="她", avatar_url=None, persona=""),
+        ]
+    )
+    html = render_dsl(dsl)
+    assert 'class="avatar avatar-default"' in html
+
+
+def test_ink_ai_badge_rendered():
+    """✅ ink AI 角标始终渲染。"""
+    dsl = make_ink_dsl()
+    html = render_dsl(dsl)
+    assert 'class="ai-badge' in html
+    assert "AI" in html or "生成" in html
+
+
+def test_ink_reply_quote_renders():
+    """✅ ink 带 reply_to 的消息渲染 .reply-quote。"""
+    dsl = make_ink_dsl(
+        messages=[
+            Message(sender_id="her", kind="text", text="原始消息内容", delay_ms=1500),
+            Message(sender_id="me", kind="text", text="这是回复", delay_ms=1500, reply_to=1),
+        ]
+    )
+    html = render_dsl(dsl)
+    assert 'class="reply-quote"' in html
+    assert "原始消息内容" in html
+    assert "她" in html
+    assert "data-reply-to=\"m1\"" in html
+
+
+def test_ink_avatar_rotation():
+    """✅ ink 头像 inline style 包含 rotate 且角度在 [-3, +3] 范围内。"""
+    dsl = make_ink_dsl()
+    html = render_dsl(dsl)
+    # 仅匹配 .avatar 元素上的 transform: rotate(...)（避免标题/系统印章的 -5° 被误扫）
+    rotations = re.findall(
+        r'<div class="avatar[^"]*"[^>]*style="[^"]*transform:\s*rotate\(([-\d.]+)deg\)',
+        html,
+    )
+    assert rotations, "no avatar rotation found"
+    for deg_str in rotations:
+        deg = float(deg_str)
+        assert -3 <= deg <= 3, f"avatar rotation {deg} out of [-3, +3] range"
+
+
+def test_ink_svg_filter_and_displacement_map():
+    """✅ ink 模板包含 SVG 笔触滤镜与 feDisplacementMap。"""
+    dsl = make_ink_dsl(messages=[Message(sender_id="her", kind="text", text="你好", delay_ms=1500)])
+    html = render_dsl(dsl)
+    assert '<filter id="ink-edge"' in html
+    assert "feDisplacementMap" in html
+
+
+def test_ink_color_whitelist():
+    """✅ ink 模板产物只使用设计文档中允许的配色。"""
+    # 用一个不在 ink 调色板里的背景色渲染，渲染后移除它再扫描
+    background = "#c7c7c7"
+    dsl = make_ink_dsl(
+        background=background,
+        messages=[
+            Message(sender_id="her", kind="text", text="你好", delay_ms=1500),
+            Message(sender_id="me", kind="emoji", text="🗡️", delay_ms=1500),
+            Message(sender_id="__system__", kind="sys", text="云涌", delay_ms=1500),
+        ],
+    )
+    html = render_dsl(dsl)
+    html_for_check = html.replace(background, "")
+    for match in re.finditer(r"#([0-9a-fA-F]{3}){1,2}\b", html_for_check):
+        color = match.group(0).lower()
+        assert color in INK_ALLOWED_COLORS, f"ink theme contains unexpected color: {color}"

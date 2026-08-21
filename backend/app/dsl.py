@@ -44,7 +44,7 @@ class ChatScene(BaseModel):
     background_image_url: str | None = None  # 整页背景图;有值时叠加于背景色之上
     duration_ms: int | None = None  # None = 自动算
     opacity: float = 1.0  # 0-1,整个内容透明度,方便叠加到其他视频
-    style_theme: Literal["cyberpunk", "watercolor", "pixel", "comic", "noir"] = "comic"
+    style_theme: Literal["cyberpunk", "watercolor", "pixel", "comic", "noir", "ink"] = "comic"
     intent: str = ""
     intent_acknowledged: bool = False
     participants: list[Participant] = Field(min_length=MIN_PARTICIPANTS)
@@ -160,7 +160,7 @@ class VideoDSL(BaseModel):
 
     schema_version: Literal["1.0"] = SCHEMA_VERSION
     kind: Literal["chat"] = "chat"
-    template: Literal["cyberpunk", "watercolor", "pixel", "comic", "noir"] = "cyberpunk"
+    template: Literal["cyberpunk", "watercolor", "pixel", "comic", "noir", "ink"] = "cyberpunk"
     scene: ChatScene
 
     @model_validator(mode="after")

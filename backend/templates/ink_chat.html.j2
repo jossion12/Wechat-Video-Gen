@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Dialogue Theater — Ink</title>
+<style>
+  /* ---- 基础 / 水墨 ---- */
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+  :root {
+    --bg: {{ background }};
+    --paper: #f4ecd8;
+    --paper-light: #fcfaf2;
+    --ink-deep: #1a1a1a;
+    --ink-soft: #4a4a4a;
+    --ink-light: #8a8578;
+    --seal-red: #b8332b;
+    --seal-red-deep: #8a2520;
+    --self-bg: linear-gradient(180deg, rgba(26,26,26,0.18) 0%, rgba(26,26,26,0.06) 100%);
+    --self-text: #1a1a1a;
+    --other-bg: #fcfaf2;
+    --other-text: #1a1a1a;
+    --reply-bar: #b8332b;
+  }
+  html, body { overflow: hidden; background: var(--bg); }
+  body {
+    width: 1080px; height: 1920px; position: relative; color: var(--ink-deep);
+    display: flex; flex-direction: column;
+    font-family: "STFangsong", "FangSong", "仿宋", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
+    opacity: {{ opacity }};
+  }
+
+  /* 背景层：用户图 → 宣纸纤维 → 顶部笔触 → 远山墨影 */
+  {% if background_image_url %}
+  body::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: url('{{ background_image_url }}');
+    background-size: cover; background-position: center;
+    opacity: 0.25; pointer-events: none; z-index: 0;
+  }
+  {% endif %}
+
+  .bg-layer { position: absolute; pointer-events: none; z-index: 0; }
+  .bg-paper-fiber {
+    inset: 0; filter: url(#paper-fiber); opacity: 0.15;
+  }
+  .bg-brush {
+    top: 40px; left: 40px; width: 1000px; height: 30px;
+  }
+  .bg-mountain {
+    left: 0; right: 0; bottom: 0; height: 30%;
+    opacity: 0.6;
+  }
+
+  /* ---- 声明卡 ---- */
+  .disclaimer-card {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--paper);
+    z-index: 10000; opacity: 1;
+    transition: opacity 0.5s ease-out;
+  }
+  .disclaimer-card.hide { opacity: 0; pointer-events: none; }
+  .disclaimer-paper {
+    position: absolute; inset: 0; filter: url(#paper-fiber); opacity: 0;
+    animation: paper-in 0.2s ease-out forwards;
+  }
+  @keyframes paper-in { to { opacity: 0.25; } }
+  .disclaimer-scroll {
+    width: 600px; height: 4px; background: var(--seal-red);
+    transform: scaleX(0); transform-origin: left center;
+    animation: scroll-open 0.7s ease-out 0.2s forwards;
+    z-index: 1;
+  }
+  @keyframes scroll-open { to { transform: scaleX(1); } }
+  .disclaimer-text-wrap {
+    margin-top: 36px; overflow: hidden; z-index: 1;
+    font-family: "STKaiti", "KaiTi", "楷体", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
+    font-size: 38px; color: var(--ink-deep); letter-spacing: 3px;
+  }
+  .disclaimer-text {
+    display: inline-block; white-space: nowrap;
+    clip-path: inset(0 100% 0 0);
+    animation: typewrite 0.4s steps(24) 0.5s forwards;
+  }
+  @keyframes typewrite { to { clip-path: inset(0 0 0 0); } }
+
+  /* ---- 顶部标题栏 ---- */
+  .theater-header {
+    height: 180px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 40px; position: relative; z-index: 10;
+  }
+  .title-wrap {
+    display: flex; align-items: center; gap: 24px;
+    max-width: 920px;
+  }
+  .theater-title {
+    font-family: "STKaiti", "KaiTi", "楷体", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
+    font-size: 60px; font-weight: 700;
+    color: var(--ink-deep); text-align: center; letter-spacing: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .title-lines {
+    display: flex; align-items: center; gap: 16px; width: 100%;
+    margin-top: 8px;
+  }
+  .title-line { height: 1px; background: var(--ink-deep); }
+  .title-line--left { width: 30%; }
+  .title-line--right { width: 70%; }
+  .title-seal {
+    width: 36px; height: 36px; flex: none;
+    background: var(--seal-red); border: 2px solid var(--seal-red-deep);
+    display: flex; align-items: center; justify-content: center;
+    transform: rotate(-5deg);
+    box-shadow: 1px 2px 0 rgba(184,51,43,0.3);
+  }
+  .title-seal span {
+    font-family: "STKaiti", "KaiTi", "楷体", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
+    font-size: 20px; color: #ffffff; font-weight: 700;
+  }
+
+  /* ---- 聊天区 ---- */
+  .chat-wrap { flex: 1; min-height: 0; overflow: hidden; position: relative; z-index: 10; }
+  .chat-inner {
+    display: flex; flex-direction: column; gap: 34px;
+    padding: 38px 42px 60px; min-height: 100%;
+    transition: transform 0.5s ease-out;
+    will-change: transform;
+  }
+
+  /* ---- 时间戳 / 幕间字幕 ---- */
+  .time-stamp {
+    align-self: center;
+    background: transparent; color: var(--ink-soft);
+    font-family: "STKaiti", "KaiTi", "楷体", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
+    font-size: 22px; letter-spacing: 1px;
+    opacity: 0; transform: translateY(10px);
+    transition: opacity .35s ease-out, transform .35s ease-out;
+  }
+  .time-stamp.show { opacity: 1; transform: translateY(0); }
+
+  .sys-msg {
+    align-self: center;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transform: translateY(20px) scale(0.96);
+    transition: opacity .5s ease-out, transform .5s ease-out;
+  }
+  .sys-msg.show { opacity: 1; transform: translateY(0) scale(1); }
+  .sys-seal {
+    width: 80px; height: 80px;
+    border: 3px solid var(--seal-red); background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    transform: rotate(-5deg);
+    box-shadow: 1px 2px 0 rgba(184,51,43,0.3);
+  }
+  .sys-seal-char {
+    font-family: "STKaiti", "KaiTi", "楷体", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
+    font-size: 48px; font-weight: 700; color: var(--seal-red);
+  }
+
+  /* ---- 消息行 ---- */
+  .msg {
+    display: flex; gap: 22px; max-width: 84%; align-self: flex-start;
+    opacity: 0; transform: translateX(-20px);
+    transition: opacity .4s ease-out, transform .4s ease-out;
+  }
+  .msg.show { opacity: 1; transform: translateX(0); }
+
+  /* 圆形朱印头像 */
+  .avatar {
+    width: 92px; height: 92px; flex: none; border-radius: 50%;
+    background-size: cover; background-position: center;
+    display: flex; align-items: center; justify-content: center;
+    font-family: "STKaiti", "KaiTi", "楷体", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
+    font-size: 44px; font-weight: 700; color: #ffffff;
+    border: 2px solid var(--seal-red);
+    box-shadow: 0 1px 4px rgba(184,51,43,0.25);
+  }
+  .avatar-default { background: var(--seal-red); }
+
+  .msg .body { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+  .sender-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .sender { font-size: 24px; color: var(--ink-soft); font-weight: 700; }
+
+  /* 水墨气泡 —— 笔触毛边 */
+  .bubble {
+    position: relative; max-width: 100%; overflow: hidden;
+    padding: 24px 30px; font-size: 40px; line-height: 1.45;
+    color: var(--other-text); word-break: break-word;
+    background: var(--other-bg);
+    border-radius: 12px;
+    box-shadow: 1px 2px 0 rgba(26,26,26,0.15);
+    filter: url(#ink-edge);
+  }
+
+  /* 自己(右侧,淡墨晕染) */
+  .msg.self { flex-direction: row-reverse; align-self: flex-end; transform: translateX(20px); }
+  .msg.self .body { align-items: flex-end; }
+  .msg.self .bubble {
+    background: var(--self-bg); color: var(--self-text);
+    border-radius: 12px;
+    box-shadow: 1px 2px 0 rgba(26,26,26,0.15);
+  }
+  .msg.self .sender-row { display: none; }
+
+  /* 单独表情消息 */
+  .msg.emoji .bubble { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0; filter: none; }
+  .emoji-text { font-size: 120px; line-height: 1; filter: drop-shadow(2px 2px 0 rgba(26,26,26,0.3)); }
+  .msg.emoji.self { align-self: flex-end; }
+
+  /* 图片消息 */
+  .img-bubble { padding: 12px; background: transparent; }
+  .img-wrap { overflow: hidden; border-radius: 8px; border: 2px solid var(--ink-deep); }
+  .img-wrap img { display: block; max-width: 500px; max-height: 680px;
+                  width: auto; height: auto; border-radius: 8px; object-fit: contain;
+                  filter: sepia(0.25) contrast(0.95) brightness(1.02); }
+  .img-caption { padding: 14px 6px 4px; font-size: 36px; line-height: 1.4;
+                 color: var(--ink-deep); max-width: 480px; word-break: break-word; }
+
+  /* 视频消息 */
+  .video-bubble { padding: 0; overflow: hidden; border-radius: 8px;
+                  position: relative; max-width: 500px; background: var(--paper-light);
+                  border: 2px solid var(--ink-deep); }
+  .video-bubble .video-cover { display: block; width: 500px; min-height: 280px;
+                               max-height: 680px; object-fit: cover; border-radius: 8px;
+                               filter: sepia(0.25) contrast(0.95) brightness(1.02); }
+  .video-play { position: absolute; left: 50%; top: 50%;
+                width: 92px; height: 92px; background: var(--seal-red);
+                border-radius: 50%; transform: translate(-50%, -50%);
+                display: flex; align-items: center; justify-content: center;
+                box-shadow: 1px 2px 0 rgba(26,26,26,0.15); }
+  .video-play::before { content: ""; width: 0; height: 0;
+    border-left: 32px solid #ffffff; border-top: 20px solid transparent;
+    border-bottom: 20px solid transparent; margin-left: 10px; }
+  .video-duration { position: absolute; right: 16px; bottom: 16px;
+                    background: rgba(252,250,242,0.9); color: var(--ink-deep);
+                    font-size: 26px; padding: 4px 12px; border-radius: 8px; }
+
+  /* ---- 回复引用 ---- */
+  .reply-quote {
+    margin-bottom: 10px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.05);
+    border-left: 3px solid var(--reply-bar);
+    max-width: 100%;
+  }
+  .reply-quote-sender { font-size: 22px; font-weight: 700; color: var(--ink-deep); margin-bottom: 4px; }
+  .reply-quote-text { font-size: 26px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .msg.self .reply-quote { border-left: none; border-right: 3px solid var(--reply-bar); }
+
+  /* ---- AI 角标 ---- */
+  .ai-badge {
+    position: absolute; right: 26px; bottom: 26px; z-index: 9999;
+    pointer-events: none; user-select: none;
+  }
+  .ai-badge.retro {
+    width: 56px; height: 56px;
+    background: var(--seal-red); border: 3px solid var(--seal-red);
+    display: flex; align-items: center; justify-content: center;
+    transform: rotate(-5deg);
+    box-shadow: 1px 2px 0 rgba(184,51,43,0.3);
+    font-size: 0; color: transparent;
+  }
+  .ai-badge.retro::before {
+    content: "AI";
+    font-family: "STKaiti", "KaiTi", "楷体", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
+    font-size: 26px; font-weight: 700; color: #ffffff;
+  }
+  .ai-badge.neon, .ai-badge.minimal {
+    padding: 10px 22px; font-size: 24px; letter-spacing: 2px;
+    background: rgba(252,250,242,0.9); color: var(--ink-deep);
+    border: 2px solid var(--ink-deep);
+  }
+</style>
+</head>
+<body>
+  <!-- 内嵌 SVG 滤镜与渐变 -->
+  <svg style="position:absolute;width:0;height:0">
+    <filter id="paper-fiber">
+      <feTurbulence type="fractalNoise" baseFrequency="1.5" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+    <filter id="ink-edge" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.02 0.03" numOctaves="3" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="4" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
+
+  <!-- 背景装饰层 -->
+  <div class="bg-layer bg-paper-fiber"></div>
+  <svg class="bg-layer bg-brush" viewBox="0 0 1000 30" preserveAspectRatio="none">
+    <path d="M0,15 Q250,8 500,15 T1000,15" stroke="#4a4a4a" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.4"/>
+  </svg>
+  <svg class="bg-layer bg-mountain" viewBox="0 0 1080 576" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="mountainGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="rgba(26,26,26,0)"/>
+        <stop offset="100%" stop-color="rgba(26,26,26,0.18)"/>
+      </linearGradient>
+    </defs>
+    <path d="M0,576 L0,380 Q140,260 280,360 T560,300 T820,380 L1080,320 L1080,576 Z" fill="url(#mountainGrad)"/>
+  </svg>
+
+  <!-- 片头声明卡 -->
+  <div class="disclaimer-card" id="__disclaimer__">
+    <div class="disclaimer-paper"></div>
+    <div class="disclaimer-scroll"></div>
+    <div class="disclaimer-text-wrap">
+      <span class="disclaimer-text">{{ disclaimer_text }}</span>
+    </div>
+  </div>
+
+  <!-- 顶部标题栏 -->
+  <div class="theater-header">
+    <div class="title-wrap">
+      <div class="theater-title">{{ title }}</div>
+      <div class="title-seal"><span>印</span></div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:center;padding:0 40px;z-index:10;position:relative;">
+    <div class="title-lines">
+      <div class="title-line title-line--left"></div>
+      <div class="title-line title-line--right"></div>
+    </div>
+  </div>
+
+  <!-- 聊天区 -->
+  <div class="chat-wrap" id="chat-wrap">
+    <div class="chat-inner" id="chat-inner">
+      {% macro reply_quote(m) %}
+        {% if m.reply_to_dom_id %}
+          <div class="reply-quote" data-reply-to="{{ m.reply_to_dom_id }}">
+            <div class="reply-quote-sender">{{ m.reply_to_sender_name }}</div>
+            <div class="reply-quote-text">{{ m.reply_to_text[:30] }}{% if (m.reply_to_text | length) > 30 %}…{% endif %}</div>
+          </div>
+        {% endif %}
+      {% endmacro %}
+      {% for m in messages %}
+        {% if m.kind == 'sys' %}
+          <div class="sys-msg" id="{{ m.dom_id }}">
+            <div class="sys-seal"><span class="sys-seal-char">{{ m.seal_char }}</span></div>
+          </div>
+        {% elif m.kind == 'timestamp' %}
+          <div class="time-stamp" id="{{ m.dom_id }}">{{ m.text }}</div>
+        {% elif m.kind == 'emoji' %}
+          <div class="msg emoji {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}'); transform: rotate({{ m.sender_avatar_rotation }}deg);"></div>
+            {% else %}
+              <div class="avatar avatar-default" style="transform: rotate({{ m.sender_avatar_rotation }}deg);">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble"><span class="emoji-text">{{ m.text }}</span></div>
+            </div>
+          </div>
+        {% elif m.kind == 'image' %}
+          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}'); transform: rotate({{ m.sender_avatar_rotation }}deg);"></div>
+            {% else %}
+              <div class="avatar avatar-default" style="transform: rotate({{ m.sender_avatar_rotation }}deg);">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble img-bubble">
+                <div class="img-wrap"><img src="{{ m.image_url }}" alt="{{ m.text or '' }}"></div>
+                {% if m.text %}<div class="img-caption">{{ m.text }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        {% elif m.kind == 'video' %}
+          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}'); transform: rotate({{ m.sender_avatar_rotation }}deg);"></div>
+            {% else %}
+              <div class="avatar avatar-default" style="transform: rotate({{ m.sender_avatar_rotation }}deg);">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble video-bubble">
+                <img class="video-cover" src="{{ m.cover_url or m.video_url }}" alt="">
+                <div class="video-play"></div>
+                <div class="video-duration">{{ m.duration }}</div>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div class="msg {{ m.css_class }}" id="{{ m.dom_id }}">
+            {% if m.sender_avatar %}
+              <div class="avatar" style="background-image: url('{{ m.sender_avatar }}'); transform: rotate({{ m.sender_avatar_rotation }}deg);"></div>
+            {% else %}
+              <div class="avatar avatar-default" style="transform: rotate({{ m.sender_avatar_rotation }}deg);">{{ m.sender_name[0] if m.sender_name else '?' }}</div>
+            {% endif %}
+            <div class="body">
+              {% if m.show_name %}<div class="sender-row"><span class="sender">{{ m.sender_name }}</span></div>{% endif %}
+              {{ reply_quote(m) }}
+              <div class="bubble">{{ m.text | replace('\n', '<br>') | safe }}</div>
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- AI 角标 -->
+  <div class="ai-badge {{ ai_badge_style }}">{{ watermark_text }}</div>
+
+<script>
+  const TIMELINE = {{ timeline | tojson }};
+  const chatWrap = document.getElementById('chat-wrap');
+  const chatInner = document.getElementById('chat-inner');
+
+  function currentShift() {
+    const m = chatInner.style.transform.match(/translateY\((-?[\d.]+)px\)/);
+    return m ? parseFloat(m[1]) : 0;
+  }
+
+  function scrollToShow(el) {
+    if (!el) return;
+    const wrapRect = chatWrap.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const overflow = elRect.bottom - wrapRect.bottom;
+    if (overflow > 0) {
+      chatInner.style.transform = 'translateY(-' + (Math.abs(currentShift()) + overflow) + 'px)';
+    }
+  }
+
+  function autoScroll(el) {
+    if (!el) return;
+    scrollToShow(el);
+    el.querySelectorAll('img').forEach(img => {
+      if (!img.complete) {
+        img.addEventListener('load', () => scrollToShow(el), { once: true });
+      }
+    });
+  }
+
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      TIMELINE.forEach(t => setTimeout(() => {
+        const el = document.getElementById(t.id);
+        if (!el) return;
+        if (t.type === 'disclaimer') {
+          el.classList.add('hide');
+          return;
+        }
+        el.classList.add('show');
+        setTimeout(() => autoScroll(el), 250);
+      }, t.at));
+    }, 300);
+  });
+</script>
+</body>
+</html>
