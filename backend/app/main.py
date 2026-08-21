@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from app import db, queue
+from app import ai_service, db, queue
 from app.auth import (
     SESSION_COOKIE_MAX_AGE,
     SESSION_COOKIE_NAME,
@@ -88,6 +88,28 @@ class ImportResponse(BaseModel):
     dsl: VideoDSL
     uploaded_files: list[dict]
     warnings: list[str]
+
+
+# ---------- AI 请求/响应模型 ----------
+
+
+class GenerateDialogueRequest(BaseModel):
+    session_id: str
+    synopsis: str
+    mode: str = "group"
+    style_theme: str = "comic"
+    intent: str = "short_video_drama"
+    num_messages: int = 8
+
+
+class ContinueDialogueRequest(BaseModel):
+    session_id: str
+    dsl: VideoDSL
+    num_candidates: int = 3
+
+
+class ContinueDialogueResponse(BaseModel):
+    candidates: list[dict]
 
 
 # ---------- 装饰器辅助 ----------
@@ -346,6 +368,74 @@ async def import_package_route(
             for f in result.uploaded_files
         ],
         warnings=result.warnings,
+    )
+
+
+# ---------- AI 辅助生成 ----------
+
+
+@app.get("/api/ai/health")
+async def ai_health():
+    """检查 AI 接口连通性，不消耗额度，无需鉴权（方便运维排查）。"""
+    return await ai_service.check_ai_connection()
+
+
+@app.get("/api/ai/quota")
+async def ai_quota(user: CurrentUser = Depends(get_current_user)):
+    """查询当前用户今日 AI 生成额度。"""
+    return ai_service.get_quota_status(user.id)
+
+
+@app.post("/api/ai/generate-dialogue", response_model=VideoDSL)
+async def ai_generate_dialogue(
+    body: GenerateDialogueRequest,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """根据剧情概要生成完整对话 DSL。"""
+    sess = await asyncio.to_thread(db.get_session, body.session_id)
+    if sess is None or sess["user_id"] != user.id:
+        raise HTTPException(404, "session not found")
+
+    try:
+        dsl = await ai_service.generate_dialogue(
+            user_id=user.id,
+            synopsis=body.synopsis,
+            mode=body.mode,
+            style_theme=body.style_theme,
+            intent=body.intent,
+            num_messages=body.num_messages,
+        )
+    except ai_service.AIServiceError as exc:
+        status_code = 503 if exc.code in ("not_configured", "upstream_error", "timeout", "connect_error") else 429 if exc.code == "quota_exceeded" else 400
+        raise HTTPException(status_code, {"code": exc.code, "reason": str(exc)})
+
+    await db.touch_session_async(body.session_id)
+    return dsl
+
+
+@app.post("/api/ai/continue-dialogue", response_model=ContinueDialogueResponse)
+async def ai_continue_dialogue(
+    body: ContinueDialogueRequest,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """基于已有 DSL 续写候选消息。"""
+    sess = await asyncio.to_thread(db.get_session, body.session_id)
+    if sess is None or sess["user_id"] != user.id:
+        raise HTTPException(404, "session not found")
+
+    try:
+        candidates = await ai_service.continue_dialogue(
+            user_id=user.id,
+            current_scene=body.dsl.scene,
+            num_candidates=body.num_candidates,
+        )
+    except ai_service.AIServiceError as exc:
+        status_code = 503 if exc.code in ("not_configured", "upstream_error", "timeout", "connect_error") else 429 if exc.code == "quota_exceeded" else 400
+        raise HTTPException(status_code, {"code": exc.code, "reason": str(exc)})
+
+    await db.touch_session_async(body.session_id)
+    return ContinueDialogueResponse(
+        candidates=[c.model_dump(mode="json") for c in candidates]
     )
 
 

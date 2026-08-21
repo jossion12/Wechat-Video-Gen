@@ -18,6 +18,10 @@
 | DELETE | `/api/sessions/{id}` | ✓ | 删 session + 物理清理文件/产物 |
 | POST | `/api/upload` | ✓ | 上传头像/图片(必带 `session_id`) |
 | POST | `/api/import` | ✓ | 导入 zip(DSL + 图片素材)到当前 session |
+| GET | `/api/ai/health` | — | 检查 AI 接口连通性（不消耗额度） |
+| GET | `/api/ai/quota` | ✓ | 查询 AI 生成额度 |
+| POST | `/api/ai/generate-dialogue` | ✓ | 根据剧情概要生成完整对话 DSL |
+| POST | `/api/ai/continue-dialogue` | ✓ | 基于已有 DSL 续写候选消息 |
 | POST | `/api/preview-html` | ✓ | 接收 DSL + session_id,返回 HTML |
 | POST | `/api/render` | ✓ | 接收 DSL + session_id,入队,返回 job_id |
 | GET | `/api/jobs/{id}` | ✓ | 任务状态(所有权校验) |
@@ -246,7 +250,97 @@ const result = await importZip(file, sessionId);
 // 不自动触发 /api/render
 ```
 
-## 3.18 鉴权与 session 隔离（重申）
+## 3.18 AI 辅助生成
 
-所有 `/api/import` 请求同样要求 `X-User-Id` header，且 `session_id` 必须属于该 user。
+### `GET /api/ai/health`
+
+检查 AI 接口连通性，**不消耗额度，无需鉴权**，方便运维排查。
+
+**Response 200**：
+
+```json
+{
+  "configured": true,
+  "reachable": true,
+  "base_url": "https://api.openai.com/v1",
+  "model": "gpt-4o-mini",
+  "http_status": 401
+}
+```
+
+`reachable: true` 只表示网络可到达；`http_status` 是测试请求返回的 HTTP 状态码（常见 401/400，说明地址和端口是对的）。
+
+如果 `reachable: false`，`reason` 会给出排查方向（如 Docker 容器内 localhost 问题、代理未启动等）。
+
+### `GET /api/ai/quota`
+
+查询当前用户今日 AI 生成额度。
+
+**Response 200**：
+
+```json
+{
+  "daily_limit": 50,
+  "used_today": 3,
+  "remaining_today": 47
+}
+```
+
+### `POST /api/ai/generate-dialogue`
+
+根据剧情概要生成完整对话 DSL。
+
+**Request JSON**：
+
+```json
+{
+  "session_id": "...",
+  "synopsis": "两个朋友商量周末计划...",
+  "mode": "single",
+  "style_theme": "comic",
+  "intent": "short_video_drama",
+  "num_messages": 8
+}
+```
+
+**Response 200**：完整 `VideoDSL`。
+
+**错误**：
+
+| HTTP | `code` | 触发条件 |
+|---|---|---|
+| 400 | `parse_error` | AI 返回无法解析为 JSON |
+| 400 | `validation_error` | AI 生成内容未通过 DSL 校验 |
+| 429 | `quota_exceeded` | 当日额度已用完 |
+| 503 | `not_configured` | 服务端未配置 `AI_API_KEY` |
+| 503 | `upstream_error` / `timeout` | AI 接口异常或超时 |
+
+### `POST /api/ai/continue-dialogue`
+
+基于已有 DSL 续写候选消息。
+
+**Request JSON**：
+
+```json
+{
+  "session_id": "...",
+  "dsl": { /* VideoDSL */ },
+  "num_candidates": 3
+}
+```
+
+**Response 200**：
+
+```json
+{
+  "candidates": [
+    { "sender_id": "p1", "kind": "text", "text": "...", "delay_ms": 1500 },
+    ...
+  ]
+}
+```
+
+## 3.19 鉴权与 session 隔离（重申）
+
+所有 `/api/import`、`/api/ai/*` 请求同样要求 `X-User-Id` header，且 `session_id` 必须属于该 user。
 跨用户访问返回 404（不区分原因，避免泄露存在性）。

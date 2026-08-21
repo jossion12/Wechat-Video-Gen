@@ -3,6 +3,7 @@ import { createSession, importZip, submitRender } from './api';
 import type { ChatScene, Message, Participant, VideoDSL } from './types';
 import { THEME_DEFAULT_BACKGROUND } from './types';
 import { validateConfig } from './validate';
+import { AIGeneratePanel } from './components/AIGeneratePanel';
 import { HeaderEditor } from './components/HeaderEditor';
 import { IntentStep } from './components/IntentStep';
 import { ParticipantList } from './components/ParticipantList';
@@ -204,6 +205,37 @@ export default function App() {
     }));
   }, []);
 
+  const handleApplyGeneratedDSL = useCallback((generated: VideoDSL) => {
+    setDsl((prev) => ({
+      ...generated,
+      scene: {
+        ...generated.scene,
+        // 保留用户当前已确认的创作意图与合规承诺状态
+        intent: prev.scene.intent,
+        intent_acknowledged: prev.scene.intent_acknowledged,
+      },
+    }));
+    setJobId(null);
+  }, []);
+
+  const handleAppendCandidates = useCallback((candidates: Message[]) => {
+    setDsl((prev) => {
+      const existing = prev.scene.messages;
+      const appended = candidates.map((m) => ({
+        ...m,
+        // 重置引用,避免跨上下文引用失效
+        reply_to: null,
+      }));
+      return {
+        ...prev,
+        scene: {
+          ...prev.scene,
+          messages: sanitizeMessages([...existing, ...appended]),
+        },
+      };
+    });
+  }, []);
+
   const handleRender = async () => {
     if (!sessionId) {
       setSubmitError(sessionError ?? '会话未就绪，无法提交');
@@ -312,12 +344,21 @@ export default function App() {
         );
       case 4:
         return (
-          <MessageList
-            participants={dsl.scene.participants}
-            messages={dsl.scene.messages}
-            sessionId={sessionId}
-            onChange={updateMessages}
-          />
+          <>
+            <MessageList
+              participants={dsl.scene.participants}
+              messages={dsl.scene.messages}
+              sessionId={sessionId}
+              onChange={updateMessages}
+            />
+            <AIGeneratePanel
+              sessionId={sessionId}
+              scene={dsl.scene}
+              dsl={dsl}
+              onApplyGenerated={handleApplyGeneratedDSL}
+              onAppendCandidates={handleAppendCandidates}
+            />
+          </>
         );
       case 5:
         return (

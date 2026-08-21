@@ -16,6 +16,7 @@
 - 提交后 SSE 实时推送进度，完成后一键下载 MP4
 - 录制时长自动计算，可与 `duration_ms` 精确对齐
 - 强制 AI 生成标识：右下角角标 + 片头 1 秒声明卡
+- AI 辅助创作：输入剧情概要自动生成完整对话，或基于已有对话续写候选消息
 
 ## 快速开始（Docker）
 
@@ -23,10 +24,13 @@
 # 0. 先构建前端产物（需要 Node 18+）
 cd frontend && npm install && npm run build && cd ..
 
-# 1. 一键起服务（后端 8000 + 前端 8080）
+# 1. 复制环境变量模板并按需修改( especially AI_API_KEY )
+cp .env.example .env
+
+# 2. 一键起服务（后端 8000 + 前端 8080）
 docker compose up -d
 
-# 2. 浏览器打开
+# 3. 浏览器打开
 open http://localhost:8080
 ```
 
@@ -54,14 +58,24 @@ npm run dev                       # http://localhost:5173，Vite 代理 /api →
 
 ## 环境变量
 
+所有变量都支持通过项目根目录的 `.env` 文件设置（`docker compose` 会自动加载），见 `.env.example`。
+
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `WORKER_COUNT` | 2 | 并发录制 worker 数 |
 | `LOG_LEVEL` | info | 日志级别 |
 | `MAX_QUEUE_SIZE` | 100 | 队列上限，超过 `/api/render` 返回 503 |
-| `MAX_UPLOAD_SIZE` | 2097152 | 单文件 2MB |
+| `MAX_UPLOAD_SIZE` | 2097152 | 单文件 2MB；Docker 默认 10MB |
 | `STORAGE_DIR` | `./storage` | 文件存储根 + SQLite DB |
 | `AUTH_REQUIRED` | `true` | 强制鉴权开关；本地 dev / demo 设 `false` 跳过鉴权 |
+| `BASE_URL` | `http://localhost:8000` | 上传资源转绝对 URL；部署到域名时修改 |
+| `AI_API_KEY` | — | OpenAI 兼容 API Key；未配置时 AI 生成功能不可用 |
+| `AI_BASE_URL` | `https://api.openai.com/v1` | OpenAI 兼容 API 基础 URL |
+| `AI_MODEL` | `gpt-4o-mini` | 对话生成使用的模型 |
+| `AI_MAX_TOKENS` | `4096` | 单次生成最大 token 数 |
+| `AI_TEMPERATURE` | `0.8` | 生成温度 |
+| `AI_DAILY_LIMIT` | `50` | 每用户每日 AI 调用额度（内存计数，重启清零） |
+| `AI_TIMEOUT_SECONDS` | `60` | AI 接口超时时间 |
 
 ## 多用户 / Session
 

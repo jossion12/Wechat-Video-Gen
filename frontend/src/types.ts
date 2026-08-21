@@ -157,3 +157,30 @@ export interface ImportResponse {
   uploaded_files: ImportedFile[];
   warnings: string[];
 }
+
+// ---------- AI 辅助生成 ----------
+
+export interface AIQuotaStatus {
+  daily_limit: number;
+  used_today: number;
+  remaining_today: number;
+}
+
+export interface GenerateDialogueRequest {
+  session_id: string;
+  synopsis: string;
+  mode: Mode;
+  style_theme: StyleTheme;
+  intent: Intent;
+  num_messages: number;
+}
+
+export interface ContinueDialogueRequest {
+  session_id: string;
+  dsl: VideoDSL;
+  num_candidates: number;
+}
+
+export interface ContinueDialogueResponse {
+  candidates: Message[];
+}

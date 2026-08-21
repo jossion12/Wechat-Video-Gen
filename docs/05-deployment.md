@@ -51,6 +51,10 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 ## 5.3 docker-compose.yml
 
+> 生产环境建议把敏感配置（尤其是 `AI_API_KEY`）放在项目根目录的 `.env` 文件里，`docker compose` 会自动加载。仓库里只保留 `.env.example` 作为模板，`.env` 已在 `.gitignore` 中。
+
+> **Docker 网络注意**：后端容器内 `localhost` 指向容器自身。如果 AI 代理（如 LiteLLM/One-API）跑在宿主机上，`AI_BASE_URL` 不能写 `http://localhost:3000`，应写 `http://host.docker.internal:3000`（Docker Desktop / macOS / Windows）或宿主机内网 IP。
+
 ```yaml
 version: "3.9"
 
@@ -65,9 +69,22 @@ services:
     volumes:
       - ./storage:/app/storage      # 持久化上传与产物
     environment:
-      - WORKER_COUNT=2
-      - LOG_LEVEL=info
-      # - BASE_URL=http://localhost:8000  # 上传资源转绝对 URL;部署到域名时修改
+      # 核心配置(从 .env 读取,带默认值)
+      - WORKER_COUNT=${WORKER_COUNT:-2}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - MAX_UPLOAD_SIZE=${MAX_UPLOAD_SIZE:-10485760}
+      - AUTH_REQUIRED=${AUTH_REQUIRED:-true}   # 生产必须 true
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
+      - IMPORT_MAX_ZIP_SIZE=${IMPORT_MAX_ZIP_SIZE:-209715200}
+      - IMPORT_MAX_UNPACKED_SIZE=${IMPORT_MAX_UNPACKED_SIZE:-524288000}
+      # AI 辅助生成(密钥写在 .env,不要提交到仓库)
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_BASE_URL=${AI_BASE_URL:-https://api.openai.com/v1}
+      - AI_MODEL=${AI_MODEL:-gpt-4o-mini}
+      - AI_MAX_TOKENS=${AI_MAX_TOKENS:-4096}
+      - AI_TEMPERATURE=${AI_TEMPERATURE:-0.8}
+      - AI_DAILY_LIMIT=${AI_DAILY_LIMIT:-50}
+      - AI_TIMEOUT_SECONDS=${AI_TIMEOUT_SECONDS:-60}
     restart: unless-stopped
 
   # 可选:用 nginx 服务前端静态文件

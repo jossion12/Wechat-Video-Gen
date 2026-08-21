@@ -1,7 +1,11 @@
 import type {
+  ContinueDialogueRequest,
+  ContinueDialogueResponse,
   FileInfo,
+  GenerateDialogueRequest,
   ImportResponse,
   JobStatusResponse,
+  Message,
   RenderJobEvent,
   SessionDetail,
   SessionInfo,
@@ -209,4 +213,27 @@ export async function importZip(file: File, sessionId: string): Promise<ImportRe
     method: 'POST',
     body: form,
   });
+}
+
+// ---------- AI 辅助生成 ----------
+
+export async function getAIQuota(): Promise<{ daily_limit: number; used_today: number; remaining_today: number }> {
+  return requestJson('/api/ai/quota');
+}
+
+export async function generateDialogue(req: GenerateDialogueRequest): Promise<VideoDSL> {
+  return requestJson<VideoDSL>('/api/ai/generate-dialogue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+}
+
+export async function continueDialogue(req: ContinueDialogueRequest): Promise<Message[]> {
+  const data = await requestJson<ContinueDialogueResponse>('/api/ai/continue-dialogue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  return data.candidates;
 }
