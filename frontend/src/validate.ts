@@ -1,5 +1,15 @@
 import type { ChatScene, Intent } from './types';
 
+function containsPlatformName(text: string, name: string): boolean {
+  // 中文平台名按子串匹配;英文平台名按单词边界匹配,
+  // 避免 "Meta" 误杀 "Metal" 等技术词汇。
+  if (/[\u4e00-\u9fa5]/.test(name)) {
+    return text.includes(name);
+  }
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${escaped}\\b`).test(text);
+}
+
 // 与服务端 HIGH_RISK_WORDS / PLATFORM_NAMES 保持一致
 const HIGH_RISK_WORDS = [
   '转账', '红包', '密码', '验证码', '银行卡', '汇款', '借款',
@@ -80,7 +90,7 @@ export function validateConfig(config: ChatScene): string | null {
       }
     }
     for (const name of PLATFORM_NAMES) {
-      if (text.includes(name)) {
+      if (containsPlatformName(text, name)) {
         return `请勿模仿真实平台「${name}」，请使用原创表达`;
       }
     }

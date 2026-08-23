@@ -1,0 +1,842 @@
+{
+  "schema_version": "1.0",
+  "kind": "chat",
+  "template": "cyberpunk",
+  "scene": {
+    "mode": "group",
+    "title": "MiniMax 全维度观察：H3 爆火、股价腰斩，财报前是机会还是炮灰？",
+    "background": "#0a0a12",
+    "style_theme": "cyberpunk",
+    "intent": "short_video_drama",
+    "intent_acknowledged": true,
+    "background_image_url": "backgrounds/bg.jpg",
+    "participants": [
+      {
+        "id": "laopao",
+        "name": "老炮",
+        "avatar_url": "avatars/laopao.png",
+        "persona": "十年科技股老炮，专治FOMO，说话带数字，专拆估值泡沫和散户幻想"
+      },
+      {
+        "id": "xiaoming",
+        "name": "韭菜小明",
+        "avatar_url": "avatars/xiaoming.png",
+        "persona": "刚关注 MiniMax 的散户小白，听风就是雨，怕追高更怕踏空"
+      },
+      {
+        "id": "ajie",
+        "name": "技术阿杰",
+        "avatar_url": "avatars/ajie.png",
+        "persona": "开源信徒，硬件玩家，关注 H3 / Music 3 技术细节和社区降本玩法"
+      },
+      {
+        "id": "jigou",
+        "name": "机构姐",
+        "avatar_url": "avatars/jigou.png",
+        "persona": "投资分析师，看商业模式、ARR 和毛利率，理性但也会被叙事打动"
+      }
+    ],
+    "messages": [
+      {
+        "sender_id": "__system__",
+        "kind": "sys",
+        "text": "金融炮灰 · 别人教你赚钱，我教你别死",
+        "delay_ms": 1800
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "sys",
+        "text": "第一幕：MiniMax 是真火还是虚火？",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "老炮老炮，MiniMax 最近刷屏了，H3 开源、股价一天涨 12%，是不是要冲？",
+        "delay_ms": 1900
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "先别急。一天涨 12% 不是利好，是情绪。别人教你赚钱，我教你别死。",
+        "delay_ms": 2100
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "8 月 21 日成交额是日均 2.5 倍，成交量约 1876 万股，明显是资金在赌 26 号的中报。",
+        "delay_ms": 2600
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "赌财报？那 26 号不是要一把爆发？",
+        "delay_ms": 1400
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "恰恰相反。财报前抢跑，意味着“超预期”的门槛被显著抬高，符合预期都可能被当作利空。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "但技术上 H3 确实能打。2K 分辨率 + 原生音频，每秒 0.13 美元，不到主流竞品三分之一。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "那不是很便宜？做 AI 短剧的不是要起飞？",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "标价不等于真实成本。废片率、参考图费用、后期成本，你算过吗？",
+        "delay_ms": 2400
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "先说基本面。MiniMax 2025 全年收入 7904 万美元，同比增长 158.9%；毛利 2008 万，毛利率 25.4%。",
+        "delay_ms": 3000
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "听起来很猛啊！",
+        "delay_ms": 1100
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "但经调整净亏损 2.51 亿美元，全年亏损是收入的 3 倍多。收入增长，亏损没缩。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "timestamp",
+        "text": "10 分钟后",
+        "delay_ms": 1300
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "sys",
+        "text": "第二幕：H3 和 Music 3，千万别搞混",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "我用 H3 做背景音乐不就行了？还能省个 Music 3 的钱。",
+        "delay_ms": 1900
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "错了，这是两个完全不同的产品。H3 是视频模型的自带音轨，最长只有 15 秒。",
+        "delay_ms": 2600
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "Music 3 是独立音乐模型，最长 5 分钟，支持歌词、主歌、副歌、桥段、尾奏完整结构，还能做翻唱。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "那我给现有视频配 BGM 用哪个？",
+        "delay_ms": 1400
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "Music 3。只有需要同步对白、音效、环境音的镜头级视频，才用 H3。",
+        "delay_ms": 2400
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "这个区分很重要。很多投资者把两个混为一谈，会高估 H3 在音乐商业化上的空间。",
+        "delay_ms": 2600
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "机构吹得天花乱坠，散户冲进去就是炮灰。产品都分不清，你炒什么股。",
+        "delay_ms": 2200
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "H3 的核心是音画一体化。768P 每秒 0.08 美元，2K 每秒 0.13 美元，参考音频免费。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "跟 Sora、Runway 比呢？",
+        "delay_ms": 1300
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "在“带原生音频的 2K 视频”这个赛道，H3 是目前最便宜的 credible 选项。Sora 2 标准要 0.10，Runway Gen-4.5 0.12-0.20。",
+        "delay_ms": 3200
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "但要注意，Veo 3.1 Lite 更便宜到 0.03，但它完全没有音频，不是一个品类。",
+        "delay_ms": 2600
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "sys",
+        "text": "第三幕：真实成本，不是标价",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "真正该算的是：总生成成本 + 后期成本，除以最终可用秒数。",
+        "delay_ms": 2400
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "废片率通常 30%-50%，新手可能更高。你算过吗？",
+        "delay_ms": 1900
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "没算过……那 0.13 美元会变成多少？",
+        "delay_ms": 1400
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "废片率 50% 的话，可用成本直接翻倍到 0.26 美元/秒。一个 10 秒可用视频，真实成本是 2.6 美元。",
+        "delay_ms": 3000
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "那 30 秒的呢？",
+        "delay_ms": 1100
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "7.8 美元。还没算参考图片、升级 2K、Context-IR 预处理和后期剪辑的钱。",
+        "delay_ms": 2600
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "image",
+        "image_url": "images/chart-h3-cost.jpg",
+        "text": "H3 与竞品 2K 成本对比",
+        "delay_ms": 2800
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "但有个省钱技巧：先在 768P 测试，满意后再花 0.05 美元/秒升级到 2K，淘汰掉的草稿不用付 2K 费用。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "那本地能不能跑？",
+        "delay_ms": 1100
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "能。H3-Base 权重开源，ComfyUI 团队把 123.6GB 压到 42.5GB，RTX 3060 8GB 都能跑 480p。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "这就是“本地打样 + 云端成片”的工作流。本地 4090 出草稿，云端生成正式版本。",
+        "delay_ms": 2600
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "能玩不代表能赚钱。跟当年“区块链革命”一个味儿，门槛越低，越难赚钱。",
+        "delay_ms": 2400
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "参考图片前 5 张免费，第 6 张起每张 0.04 美元；参考视频按输入时长计费；Context-IR 预处理输入 0.90/M tokens，输出 3.60/M tokens。",
+        "delay_ms": 3400
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "timestamp",
+        "text": "半小时后",
+        "delay_ms": 1300
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "sys",
+        "text": "第四幕：开源是 democratization，也是双刃剑",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "H3-Base 2026 年 7 月 28 日开源，一周内社区衍生出近 300 个模型，ComfyUI 版本下载量近 700 万。",
+        "delay_ms": 3000
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "这么火，商业上不是被反噬了吗？人人都能本地跑。",
+        "delay_ms": 1800
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "这就是开源的 dilemma。传播快、生态大，但授权限制和商业变现是双刃剑。",
+        "delay_ms": 2600
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "社区许可排除美欧英韩，年营收超 2000 万美元要单独授权，界面必须标“Powered by MiniMax H3”。",
+        "delay_ms": 3000
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "免费的不是最贵的，受限的才是。想用 H3 做大规模商业产品，授权费迟早找上门。",
+        "delay_ms": 2400
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "而且 2K 模块没有开源，开源的是 768P 基座。想商用高清，还是得走 API。",
+        "delay_ms": 2600
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "那开源图什么？",
+        "delay_ms": 1100
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "对 MiniMax 来说，开源是生态战。更多人用，API 调用量和品牌心智就建立起来了，B 端客户也更容易转化。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "品牌归品牌，利润归利润。生态大不等于赚钱快。",
+        "delay_ms": 1800
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "antirez 用 C 和 Metal 写了 Mac 原生引擎 h3.c，NVIDIA Sol Engine 做到 3.95 倍加速，AMD 社区也出了补丁。",
+        "delay_ms": 3000
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "这说明 H3 在开发者社区确实获得了极高关注度，生态壁垒正在形成。",
+        "delay_ms": 2400
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "sys",
+        "text": "第五幕：MiniMax Design，想做视频界的 Claude Code",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "MiniMax Design 不是视频生成器，而是一个多模态创作 Agent 工作台。",
+        "delay_ms": 2400
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "什么意思？跟剪映有什么区别？",
+        "delay_ms": 1400
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "你用自然语言描述需求，Agent 自动拆解任务、调用模型、完成脚本、分镜、生成和剪辑。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "现在的痛点是模型很强，但生产很弱。写提示词像非遗手艺，老师傅手敲几千字。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "说白了，当视频生成越来越便宜，护城河是“把模型能力组织成可交付生产流程”。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "那以后小白也能做视频了？",
+        "delay_ms": 1300
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "它还内置电影片头、KOC 种草、教育动画等专业 Skill，支持自定义 Skill 和 ComfyUI 工作流导入。",
+        "delay_ms": 3000
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "是，但小白越多，赛道越卷。赚钱的永远是会做生产流程的人，不是只会点按钮的人。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "Design 还加了 3D 导演台，能在生成前调整人物姿态、场景布局、镜头机位和构图。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "timestamp",
+        "text": "收盘后",
+        "delay_ms": 1300
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "sys",
+        "text": "第六幕：股价从 1330 跌到 347，市值蒸发 74%",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "股价从高点 1330 跌到 347，跌去 74%，是不是黄金坑？",
+        "delay_ms": 1900
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "image",
+        "image_url": "images/chart-stock.jpg",
+        "text": "MiniMax 股价走势与关键价位",
+        "delay_ms": 2800
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "当前市值约 155 亿美元，年初至今涨幅仍有 47.49%，但 52 周区间是 186.20 到 1330 港元。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "47% 看着不错，但 8 月 21 日才从 7 月低点 222.6 反弹了 56%。你猜低点买的人在想什么？",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "兑现？",
+        "delay_ms": 1000
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "对。他们已经浮盈 50% 以上，有强烈兑现冲动。你冲进去可能正好接盘。",
+        "delay_ms": 2400
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "7 月 9 日解禁了占总股本 48.9% 的股份，约 1.53 亿股，当天大跌 17.98%。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "不是超八成股东表态长期持有吗？",
+        "delay_ms": 1400
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "是表态，但财务投资者的套现压力持续存在。若股价反弹至 400 港元以上，可能再次触发解禁盘减持。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "流通盘扩容后，潜在抛压就像悬在头顶的刀。",
+        "delay_ms": 1800
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "那机构目标价怎么说？",
+        "delay_ms": 1300
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "高盛目标价 800-860 港元，评级买入；摩根大通目标价 160 港元，评级中性。分歧极大。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "分歧大不是机会，是风险。说明连机构都看不清估值框架。",
+        "delay_ms": 2200
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "还有迪士尼等好莱坞片商 2025 年 9 月起诉海螺 AI 侵权，案件进展和潜在财务影响要持续关注。",
+        "delay_ms": 3000
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "版权诉讼是 AI 视频行业的集体风险，不是 MiniMax 一家。",
+        "delay_ms": 1900
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "sys",
+        "text": "第七幕：8 月 26 日财报，这三组数字决定生死",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "2025 全年收入 7903.8 万美元，毛利 2007.9 万美元，毛利率 25.4%，同比提升 13.2 个百分点。",
+        "delay_ms": 3200
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "2026 年 2 月 ARR 突破 1.5 亿美元，4 月底达到 4 亿美元，年底目标是 10 亿美元。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "ARR 增长好快！是不是说明订阅和 API 粘性很强？",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "5 月时过去两个月 ARR 增长超 100%，全球企业和开发者客户超 100 万，全球用户约 3 亿。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "用户数不等于付费用户，更不等于利润。3 亿人围观，不代表 3 亿人掏钱。",
+        "delay_ms": 2400
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "H1 营收预测 1.10-1.30 亿美元，同比增速 200%-300%，毛利率预计 30%-35%。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "经调整净亏损预计 1.2-1.5 亿美元，现金余额预计 8-9 亿美元。",
+        "delay_ms": 2600
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "还是亏这么多？那什么时候能盈利？",
+        "delay_ms": 1400
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "研发开支高位，M3 Pro、H3 训练都在烧钱。这就是 AI 公司的现状：收入增长快，利润遥遥无期。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "image",
+        "image_url": "images/chart-forecast.jpg",
+        "text": "H1 2026 业绩预测与关键催化",
+        "delay_ms": 2800
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "最值得关注的不是营收数字，而是收入结构。B 端占比从 2025 年的约 1/3 提升到约 50%。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "B 端粘性更强，API 调用更稳定。开放平台客户半年增长 5 倍，这是真正的商业化引擎。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "但 M3 发布一周后就 API 永久半价，“极致性价比”战略可能持续压制毛利改善节奏。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "timestamp",
+        "text": "行业对比时间",
+        "delay_ms": 1300
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "sys",
+        "text": "第八幕：MiniMax vs GLM，不是同一个战场",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "MiniMax 和智谱 AI 哪个更强？是不是买谁都能蹭 AI 行情？",
+        "delay_ms": 1800
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "image",
+        "image_url": "images/chart-glmcmp.jpg",
+        "text": "MiniMax vs GLM 核心差异",
+        "delay_ms": 2800
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "一句话：MiniMax 是“视频内容生产引擎”，GLM 是“通用智能基座 + 编程自动化”。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "MiniMax 押注视频生成工业化和民主化，GLM 押注通用智能和 AutoGLM 操作 Agent。",
+        "delay_ms": 2600
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "MiniMax 核心计费单位是视频时长，GLM 是 Token 消耗 + Coding Plan 订阅。",
+        "delay_ms": 2400
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "两家公司没有直接竞争，但都在讲 AI 叙事。散户别混在一起炒，赛道逻辑完全不同。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "那我该关注哪个？",
+        "delay_ms": 1100
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "看你想赌哪个赛道：视频内容生产 vs 编程自动化。两个都是大赛道，但风险点不一样。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "或者两个都不赌。AI 赛道很热，但热不代表你能赚钱。",
+        "delay_ms": 1900
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "sys",
+        "text": "第九幕：财报前后三种情景，别当炮灰",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "8 月 26 日财报前，市场已经抢跑。我们分三种情景看。",
+        "delay_ms": 2100
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "情景 A 超预期，概率约 30%：H1 收入 > 1.3 亿美元、6 月底 ARR > 5 亿、毛利率 > 30%、B 端占比 > 50%。",
+        "delay_ms": 3400
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "那股价会涨吗？",
+        "delay_ms": 1100
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "财报后 1-3 个交易日可能冲高到 380-420 港元，但 400 以上是 6 月密集成交区，套牢盘压力大。",
+        "delay_ms": 3000
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "情景 B 最可能，概率 50%。符合预期反而可能“买预期，卖事实”。",
+        "delay_ms": 2400
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "情景 B 触发条件：H1 收入 1.1-1.3 亿、ARR 3.5-4.5 亿、毛利率 28-32%、管理层指引温和。",
+        "delay_ms": 3200
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "那股价怎么走？",
+        "delay_ms": 1100
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "财报当日或次日可能回调至 320-340 港元，市场情绪偏弱可能短暂下探 300 整数关口。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "8 月 21 日已经涨了 11.86%，符合预期的财报无法提供新的上涨动能。",
+        "delay_ms": 2400
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "情景 C 不及预期，概率 20%：收入 < 1.1 亿、ARR 增速放缓、毛利改善停滞。",
+        "delay_ms": 2900
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "股价可能大幅回调到 280-300 港元，测试 7 月低点 222 的可能性较低，268 港元是强支撑。",
+        "delay_ms": 3000
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "那我该怎么操作？",
+        "delay_ms": 1100
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "如果你问我，短线别赌财报。赌赢了赚几个点，赌错了可能被套 20%。",
+        "delay_ms": 2600
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "真正的下一个催化剂是 9-10 月的 M3 Pro，3 万亿参数模型。若中报给出明确时间表，回调后可能重新获得上行动能。",
+        "delay_ms": 3200
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "但 171 倍 PS 下，任何增速放缓都会被放大成估值杀。这不是股票，是情绪杠杆。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "timestamp",
+        "text": "最后",
+        "delay_ms": 1300
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "sys",
+        "text": "第十幕：听好了，别当炮灰的三条铁律",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "听好了，别当炮灰的三条铁律。",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "第一，不赌财报日。8 月 21 日抢跑已经把预期打满，符合预期反而可能回调。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "第二，看 ARR 增速和毛利率趋势，不是单日涨幅。收入结构质变比数字本身更重要。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "ajie",
+        "kind": "text",
+        "text": "第三，技术牛不等于股价牛。H3 再强，也挡不住解禁盘、价格战和版权诉讼。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "xiaoming",
+        "kind": "text",
+        "text": "那我现在最该做什么？",
+        "delay_ms": 1300
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "算不清“估值 × 情绪 × 杠杆”的人，就是风口上的炮灰。先学会算，再考虑进场。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "jigou",
+        "kind": "text",
+        "text": "等财报后情绪稳定，再评估 M3 Pro 进展和 ARR 持续性。中长线看商业模式，短线看情绪。",
+        "delay_ms": 2700
+      },
+      {
+        "sender_id": "laopao",
+        "kind": "text",
+        "text": "记住，别人教你赚钱，我教你别死。",
+        "delay_ms": 1600
+      },
+      {
+        "sender_id": "__system__",
+        "kind": "sys",
+        "text": "本内容由AI生成 · 仅供创意表达 · 不构成投资建议",
+        "delay_ms": 2000
+      }
+    ],
+    "watermark": {
+      "text": "金融炮灰 · 别人教你赚钱，我教你别死",
+      "badge_style": "neon"
+    }
+  }
+}

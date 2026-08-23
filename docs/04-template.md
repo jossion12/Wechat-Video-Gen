@@ -2,14 +2,19 @@
 
 ## 4.1 文件位置
 
-当前支持 4 种原创视觉风格：
+已上线 4 种视觉风格；另计划新增 3 种（详细设计见 [`10-new-themes-design.md`](./10-new-themes-design.md)）：
 
-| 风格 | 模板文件 | 定位 |
-|---|---|---|
-| 赛博朋克 | `backend/templates/cyberpunk_chat.html.j2` | 深色模式 + 霓虹蓝/紫/粉 |
-| 手绘 | `backend/templates/watercolor_chat.html.j2` | 莫兰迪色系 + 纸张纹理 + 楷体 |
-| 复古 | `backend/templates/pixel_chat.html.j2` | 黑底绿字 + 硬边矩形 + 扫描线 |
-| 漫画 | `backend/templates/comic_chat.html.j2` | 粗黑边框 + 半调网点 + 拟声词风格 |
+| 风格 | 模板文件 | 定位 | 状态 |
+|---|---|---|---|
+| 赛博朋克 cyberpunk | `backend/templates/cyberpunk_chat.html.j2` | 深色模式 + 霓虹蓝/紫/粉 | 已上线 |
+| 手绘 watercolor | `backend/templates/watercolor_chat.html.j2` | 莫兰迪色系 + 纸张纹理 + 楷体 | 已上线 |
+| 复古 pixel | `backend/templates/pixel_chat.html.j2` | 黑底绿字 + 硬边矩形 + 扫描线 | 已上线 |
+| 漫画 comic | `backend/templates/comic_chat.html.j2` | 粗黑边框 + 半调网点 + 拟声词风格 | 已上线 |
+| 黑白胶片 noir | `backend/templates/noir_chat.html.j2` | 纯灰阶 + 衬线 + 菲林颗粒 + 胶片孔 | 设计完成，待实现 |
+| 水墨 ink | `backend/templates/ink_chat.html.j2` | 宣纸 + 墨韵 + 朱印 + 笔触毛边 | 设计完成，待实现 |
+| 蒸汽波 vaporwave | `backend/templates/vaporwave_chat.html.j2` | 落日渐变 + 透视网格 + 片假名 + 铬金属 | 设计完成，待实现 |
+
+实现顺序：**noir → ink → vaporwave**（理由见设计文档 §10.8）。
 
 - 渲染入口：`backend/app/renderer.py::render_chat()` / `render_dsl()`
 - 分发逻辑：按 `VideoDSL.template` 加载对应 `<template>_chat.html.j2`

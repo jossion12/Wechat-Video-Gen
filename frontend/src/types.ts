@@ -2,7 +2,7 @@ export type Mode = 'single' | 'group';
 export type MessageKind = 'text' | 'image' | 'sys' | 'timestamp' | 'video' | 'emoji';
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
 export type VideoKind = 'chat';
-export type VideoTemplate = 'cyberpunk' | 'watercolor' | 'pixel' | 'comic';
+export type VideoTemplate = 'cyberpunk' | 'watercolor' | 'pixel' | 'comic' | 'noir' | 'ink';
 export type StyleTheme = VideoTemplate;
 export type Intent =
   | 'short_video_drama'
@@ -23,6 +23,8 @@ export const STYLE_THEME_LABELS: Record<StyleTheme, string> = {
   watercolor: '手绘',
   pixel: '复古',
   comic: '漫画',
+  noir: '黑白胶片',
+  ink: '水墨',
 };
 
 /** 各主题首次启用时的推荐背景色。 */
@@ -31,6 +33,8 @@ export const THEME_DEFAULT_BACKGROUND: Record<StyleTheme, string> = {
   watercolor: '#f7f4ed',
   pixel: '#051005',
   comic: '#ffffff',
+  noir: '#f5f0e1',
+  ink: '#f4ecd8',
 };
 
 export interface Participant {

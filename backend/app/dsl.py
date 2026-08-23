@@ -6,6 +6,7 @@ VideoDSL 是顶层 DSL,scene 字段承载具体场景配置。
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Literal
 
@@ -33,6 +34,17 @@ def auto_duration(messages: list[Message], first_delay_ms: int = 500) -> int:
     """自动算总时长:第一条消息显示时间 + 各消息 delay 之和 + 结尾 buffer。"""
     base = first_delay_ms + sum(m.delay_ms for m in messages)
     return base + 1500
+
+
+def _contains_platform_name(text: str, name: str) -> bool:
+    """检测文本中是否包含真实社交平台名。
+
+    中文平台名按子串匹配;英文平台名按单词边界匹配,
+    避免 "Meta" 误杀 "Metal" 等技术词汇。
+    """
+    if any("\u4e00" <= ch <= "\u9fff" for ch in name):
+        return name in text
+    return re.search(rf"\b{re.escape(name)}\b", text) is not None
 
 
 class ChatScene(BaseModel):
@@ -125,7 +137,7 @@ class ChatScene(BaseModel):
                         "Please ensure it is used for legitimate creative purposes only."
                     )
             for name in PLATFORM_NAMES:
-                if name in text:
+                if _contains_platform_name(text, name):
                     raise ValueError(
                         f"real platform name '{name}' detected. "
                         "Please do not imitate real social platforms."

@@ -150,9 +150,12 @@ my-dialogue/
 |---|---|---|
 | `scene.background_image_url` | 整页背景图的 zip 内路径 | `"backgrounds/bg.jpg"` |
 | `scene.participants[i].avatar_url` | 第 i 个角色的头像 zip 内路径 | `"avatars/alice.png"` |
+| `scene.messages[i].sender_id` | 发送者 id；必须是 `participants` 里的 id，或 `__system__` | `"alice"` / `"__system__"` |
 | `scene.messages[i].image_url` | 第 i 条图片消息的图片 zip 内路径 | `"images/chat-1.jpg"` |
 | `scene.messages[i].cover_url` | 第 i 条视频消息的封面 zip 内路径 | `"images/video-cover.jpg"` |
 | `scene.messages[i].video_url` | 第 i 条视频消息的视频本体 | 见下方"视频消息特殊处理" |
+
+> **关于 `__system__` 的严格限制**：`sender_id` 写成 `__system__` 时，`kind` **只能是** `"sys"` 或 `"timestamp"`。`kind` 为 `"text"` / `"image"` / `"video"` / `"emoji"` 的消息必须由真实参与者发送，否则会报 `dsl_validation_failed`。
 
 **关键约定**：zip 内的"虚拟 URL" 用**正斜杠分隔的相对路径**，不带 `/uploads/` 前缀：
 
@@ -335,7 +338,8 @@ Archive:  my-dialogue.zip
 - [ ] `schema_version` 字段值是 `"1.0"`（带引号，字符串）
 - [ ] `intent_acknowledged` 字段值是 `true`（不带引号，布尔值）
 - [ ] `participants` 数组里所有 `id` 都不重复
-- [ ] 所有 `messages[].sender_id` 都能在 `participants` 里找到对应 `id`（除了 `__system__` 表示系统消息）
+- [ ] 所有 `messages[].sender_id` 都能在 `participants` 里找到对应 `id`
+- [ ] `sender_id` 为 `__system__` 时，`kind` 必须是 `"sys"` 或 `"timestamp"`（不能是 text / image / video / emoji）
 - [ ] 所有图片 URL（`avatar_url` / `image_url` / `cover_url` / `background_image_url`）的相对路径在 zip 内**确实存在**对应文件
 - [ ] 路径大小写一致（`avatars/Me.png` ≠ `avatars/me.png`）
 - [ ] 没有用到 zip 内视频（`video_url` 用远程 URL）
@@ -343,7 +347,7 @@ Archive:  my-dialogue.zip
 
 ---
 
-## 9. 四个常用模板（可直接复制）
+## 9. 六个常用模板（可直接复制）
 
 ### 9.1 纯文字对谈
 
@@ -489,6 +493,76 @@ zip -r ../my-dialogue.zip dsl.json
 }
 ```
 
+### 9.5 黑白胶片风格
+
+适合怀旧、纪实、访谈类场景。
+
+```json
+{
+  "schema_version": "1.0",
+  "kind": "chat",
+  "template": "noir",
+  "scene": {
+    "mode": "single",
+    "title": "午夜讲堂",
+    "background": "#f5f0e1",
+    "style_theme": "noir",
+    "intent": "teaching_simulation",
+    "intent_acknowledged": true,
+    "participants": [
+      { "id": "me", "name": "我", "avatar_url": null, "persona": "哲学讲师" },
+      { "id": "student", "name": "学生", "avatar_url": null, "persona": "求知者" }
+    ],
+    "messages": [
+      { "sender_id": "__system__", "kind": "sys", "text": "第一幕：关于自由", "delay_ms": 1800 },
+      { "sender_id": "student", "kind": "text", "text": "老师，什么是自由？", "delay_ms": 1600 },
+      { "sender_id": "me", "kind": "text", "text": "自由不是想做什么就做什么。", "delay_ms": 1700 },
+      { "sender_id": "student", "kind": "text", "text": "那是什么？", "delay_ms": 1600 },
+      { "sender_id": "me", "kind": "text", "text": "自由是，不想做什么时，可以说不。", "delay_ms": 1800 }
+    ],
+    "watermark": {
+      "text": "本内容由 AI 生成 · 仅供创意表达",
+      "badge_style": "minimal"
+    }
+  }
+}
+```
+
+### 9.6 水墨风格
+
+适合古风、武侠、意境类故事。
+
+```json
+{
+  "schema_version": "1.0",
+  "kind": "chat",
+  "template": "ink",
+  "scene": {
+    "mode": "single",
+    "title": "风起云隐",
+    "background": "#f4ecd8",
+    "style_theme": "ink",
+    "intent": "story_visualization",
+    "intent_acknowledged": true,
+    "participants": [
+      { "id": "me", "name": "我", "avatar_url": null, "persona": "剑宗长老" },
+      { "id": "disciple", "name": "弟子", "avatar_url": null, "persona": "守山弟子" }
+    ],
+    "messages": [
+      { "sender_id": "__system__", "kind": "sys", "text": "风起云隐", "delay_ms": 1800 },
+      { "sender_id": "disciple", "kind": "text", "text": "师父，山门有变。", "delay_ms": 1600 },
+      { "sender_id": "me", "kind": "text", "text": "何事惊慌？", "delay_ms": 1700 },
+      { "sender_id": "disciple", "kind": "text", "text": "后山禁地，有剑气冲天。", "delay_ms": 1800 },
+      { "sender_id": "me", "kind": "text", "text": "带我去看看。", "delay_ms": 1700 }
+    ],
+    "watermark": {
+      "text": "本内容由 AI 生成 · 仅供创意表达",
+      "badge_style": "retro"
+    }
+  }
+}
+```
+
 ---
 
 ## 10. 常见错误 FAQ
@@ -513,6 +587,24 @@ A: `dsl.json` 引用了 `avatars/me.png`，但 zip 内实际没有这个文件�
 - 文件名打错了（拼写、大小写）
 - 文件确实没放进 zip（用 `unzip -l my-dialogue.zip` 看一下文件清单）
 - 路径用了反斜杠 `avatars\me.png`（应改用正斜杠）
+
+### Q: 红字 "dsl_validation_failed: sender_id '__system__' does not match any participant id"
+
+A: 你把 `__system__` 用在了不支持的消息类型上。`__system__` 只能用于 `kind` 为 `"sys"` 或 `"timestamp"` 的消息，例如：
+
+```json
+{ "sender_id": "__system__", "kind": "timestamp", "text": "今天 14:30", "delay_ms": 1500 }
+{ "sender_id": "__system__", "kind": "sys",      "text": "【系统公告】...", "delay_ms": 1500 }
+```
+
+下面这种写法会报这个错：
+
+```json
+{ "sender_id": "__system__", "kind": "text",  "text": "..." }   // ✗
+{ "sender_id": "__system__", "kind": "image", "image_url": "..." } // ✗
+```
+
+修复：把 `text` / `image` / `video` / `emoji` 消息的 `sender_id` 改成某个真实参与者的 `id`；如果想做"系统提示"样式，把 `kind` 改成 `"sys"` 并只保留 `text`（`sys` 消息不能带图片）。
 
 ### Q: 红字 "schema_version mismatch"
 

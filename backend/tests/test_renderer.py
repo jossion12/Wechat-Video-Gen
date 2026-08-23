@@ -512,6 +512,14 @@ def test_platform_name_rejected():
         )
 
 
+def test_platform_name_not_matched_as_substring():
+    """✅ 英文平台名按单词边界匹配,避免 "Meta" 误杀 "Metal" 等词汇。"""
+    dsl = make_dsl(
+        messages=[Message(sender_id="me", kind="text", text="Metal 是苹果图形 API", delay_ms=1500)]
+    )
+    assert dsl.scene.messages[0].text == "Metal 是苹果图形 API"
+
+
 # ---- noir 主题测试 ----
 
 

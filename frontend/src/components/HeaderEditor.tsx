@@ -20,6 +20,8 @@ const STYLE_OPTIONS: { value: StyleTheme; label: string }[] = [
   { value: 'watercolor', label: STYLE_THEME_LABELS.watercolor },
   { value: 'pixel', label: STYLE_THEME_LABELS.pixel },
   { value: 'comic', label: STYLE_THEME_LABELS.comic },
+  { value: 'noir', label: STYLE_THEME_LABELS.noir },
+  { value: 'ink', label: STYLE_THEME_LABELS.ink },
 ];
 
 const BADGE_OPTIONS: { value: AIBadgeStyle; label: string }[] = [
