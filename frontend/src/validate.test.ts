@@ -9,6 +9,7 @@ function buildScene(messages: ChatScene['messages']): ChatScene {
     background_image_url: null,
     duration_ms: null,
     opacity: 1,
+    intro_effect: 'none',
     style_theme: 'comic',
     intent: 'short_video_drama',
     intent_acknowledged: true,

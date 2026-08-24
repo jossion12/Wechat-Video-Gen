@@ -121,7 +121,6 @@ my-dialogue/
     "mode": "single",
     "title": "周末计划",
     "background": "#0a0a12",
-    "background_image_url": "backgrounds/bg.jpg",
     "style_theme": "cyberpunk",
     "intent": "short_video_drama",
     "intent_acknowledged": true,
@@ -156,6 +155,19 @@ my-dialogue/
 | `scene.messages[i].video_url` | 第 i 条视频消息的视频本体 | 见下方"视频消息特殊处理" |
 
 > **关于 `__system__` 的严格限制**：`sender_id` 写成 `__system__` 时，`kind` **只能是** `"sys"` 或 `"timestamp"`。`kind` 为 `"text"` / `"image"` / `"video"` / `"emoji"` 的消息必须由真实参与者发送，否则会报 `dsl_validation_failed`。
+
+### 4.2.1 其他常用字段（速查）
+
+| 字段路径 | 写什么 | 示例 |
+|---|---|---|
+| `scene.intro_effect` | 开场特效 | `"none"` / `"scanline"` / `"typewriter"` |
+| `scene.duration_ms` | 视频总时长（毫秒）；不填则自动计算 | `30000` |
+| `scene.opacity` | 整体透明度 `0.0` ~ `1.0` | `1.0` |
+| `scene.watermark.badge_style` | AI 角标样式 | `"neon"` / `"minimal"` / `"retro"` |
+| `messages[i].align` | 强制消息方向 | `"left"` / `"right"` |
+| `messages[i].reply_to` | 回复引用的消息序号（从 1 开始） | `1` |
+
+完整字段说明见 [02-data-model.md](./02-data-model.md)。
 
 **关键约定**：zip 内的"虚拟 URL" 用**正斜杠分隔的相对路径**，不带 `/uploads/` 前缀：
 
@@ -310,9 +322,9 @@ Archive:  my-dialogue.zip
 ## 7. 上传到对话剧场
 
 1. 浏览器打开对话剧场（默认 `http://localhost:8080`）
-2. 页面顶部有一行"导入 zip"按钮（在"导入 zip"按钮和 header 标题之间）
-3. 点击按钮 → 选择刚才打好的 `my-dialogue.zip`
-4. 也可以直接把 zip **拖拽**到页面中央任意位置（更省事）
+2. 点击页面顶部 header 里的"导入 zip"按钮
+3. 选择刚才打好的 `my-dialogue.zip`
+4. 也可以直接把 zip **拖拽**到页面任意位置（更省事）
 5. 等待几秒（一般 < 2 秒）
 
 成功的话：
@@ -343,7 +355,7 @@ Archive:  my-dialogue.zip
 - [ ] 所有图片 URL（`avatar_url` / `image_url` / `cover_url` / `background_image_url`）的相对路径在 zip 内**确实存在**对应文件
 - [ ] 路径大小写一致（`avatars/Me.png` ≠ `avatars/me.png`）
 - [ ] 没有用到 zip 内视频（`video_url` 用远程 URL）
-- [ ] 每张图片 ≤ 2MB，整包解压后 ≤ 20MB
+- [ ] 每张图片 ≤ 10MB，整包解压后 ≤ 500MB
 
 ---
 
@@ -647,7 +659,7 @@ A: 没影响。后端会忽略 zip 内所有没被 DSL 引用的文件，最多�
 2. 想再调整？手动编辑表单或重新拖一个 zip 进来（**会覆盖**当前 DSL）
 3. 满意了？点右下角"生成视频"按钮 → 后端开始录制 → 完成后点下载得到 MP4
 
-> 视频生成视频的限制与"零基础编辑"完全一致：单聊 2 角色、群聊 2+ 角色、消息 ≤ 100 条、首条消息间隔 ≥ 500ms。
+> 视频生成视频的限制与"零基础编辑"完全一致：单聊 2 角色、群聊 2+ 角色、消息 ≤ 300 条、首条消息间隔 ≥ 500ms。
 > 详见 [06-acceptance.md](./06-acceptance.md)。
 
 ---

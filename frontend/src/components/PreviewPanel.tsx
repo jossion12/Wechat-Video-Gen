@@ -14,6 +14,8 @@ interface PreviewPanelProps {
  * 实时预览：防抖 300ms 请求预览 HTML，渲染到 1080×1920 的 iframe 中，
  * 并按 1/3 缩放到 360×640 的手机画框。每次更新更换 iframe key 以重启动画。
  * 配置不完整（与渲染共用 validateConfig 校验）时不请求后端，显示具体原因。
+ *
+ * 注意：开头特效只在 iframe 加载瞬间播放一次。若需要重看，可点击“重播”。
  */
 export function PreviewPanel({ dsl, sessionId }: PreviewPanelProps) {
   const debouncedDsl = useDebounce(dsl, 300);
@@ -62,6 +64,15 @@ export function PreviewPanel({ dsl, sessionId }: PreviewPanelProps) {
     <section className="card preview-card">
       <div className="preview-head">
         <h2 className="card-title">预览</h2>
+        {html && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => setFrameKey((k) => k + 1)}
+          >
+            重播
+          </button>
+        )}
         {loading && <span className="preview-loading-tip">预览生成中…</span>}
       </div>
       {error && <div className="preview-error-banner">{error}</div>}
@@ -79,7 +90,7 @@ export function PreviewPanel({ dsl, sessionId }: PreviewPanelProps) {
             {error ? '预览生成失败，请检查后端服务' : hint ?? '添加参与者和消息后自动生成预览'}
           </div>
         )}
-        {loading && html && <div className="preview-overlay">预览生成中…</div>}
+
       </div>
     </section>
   );

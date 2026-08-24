@@ -54,6 +54,9 @@ PLATFORM_NAMES = [
 # 角标样式(仅视觉,不可关闭)
 AI_BADGE_STYLES = ["neon", "minimal", "retro"]
 
+# 开头特效选项
+INTRO_EFFECTS = ["none", "scanline", "typewriter"]
+
 # 视觉风格模板
 STYLE_THEMES = ["cyberpunk", "watercolor", "pixel", "comic", "noir", "ink"]
 STYLE_THEME_LABELS = {

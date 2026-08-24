@@ -1,5 +1,5 @@
 import type { ChatScene, Participant } from '../types';
-import { INTENT_LABELS, STYLE_THEME_LABELS } from '../types';
+import { INTENT_LABELS, INTRO_EFFECT_LABELS, STYLE_THEME_LABELS } from '../types';
 
 interface SummaryStepProps {
   scene: ChatScene;
@@ -49,6 +49,12 @@ export function SummaryStep({ scene }: SummaryStepProps) {
         <div className="summary-item">
           <span className="summary-label">消息数</span>
           <span className="summary-value">{scene.messages.length} 条</span>
+        </div>
+        <div className="summary-item">
+          <span className="summary-label">开头特效</span>
+          <span className="summary-value">
+            {INTRO_EFFECT_LABELS[scene.intro_effect] ?? scene.intro_effect}
+          </span>
         </div>
         <div className="summary-item">
           <span className="summary-label">AI 角标</span>

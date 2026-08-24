@@ -17,6 +17,7 @@ from app.models import (
     ALLOWED_INTENTS,
     FIRST_MESSAGE_MIN_DELAY_MS,
     HIGH_RISK_WORDS,
+    INTRO_EFFECTS,
     MAX_DURATION_MS,
     MAX_MESSAGES,
     MIN_PARTICIPANTS,
@@ -56,6 +57,7 @@ class ChatScene(BaseModel):
     background_image_url: str | None = None  # 整页背景图;有值时叠加于背景色之上
     duration_ms: int | None = None  # None = 自动算
     opacity: float = 1.0  # 0-1,整个内容透明度,方便叠加到其他视频
+    intro_effect: Literal["none", "scanline", "typewriter"] = "none"
     style_theme: Literal["cyberpunk", "watercolor", "pixel", "comic", "noir", "ink"] = "comic"
     intent: str = ""
     intent_acknowledged: bool = False

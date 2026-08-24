@@ -33,6 +33,7 @@ function createDefaultScene(): ChatScene {
     background_image_url: null,
     duration_ms: null,
     opacity: 1,
+    intro_effect: 'none',
     style_theme: 'comic',
     intent: 'short_video_drama',
     intent_acknowledged: false,
@@ -327,6 +328,7 @@ export default function App() {
             title={dsl.scene.title}
             backgroundImage={dsl.scene.background_image_url}
             opacity={dsl.scene.opacity}
+            introEffect={dsl.scene.intro_effect}
             styleTheme={dsl.scene.style_theme}
             watermark={dsl.scene.watermark}
             sessionId={sessionId}

@@ -1,5 +1,5 @@
-import type { AIBadgeStyle, Mode, StyleTheme, WatermarkConfig } from '../types';
-import { STYLE_THEME_LABELS } from '../types';
+import type { AIBadgeStyle, IntroEffect, Mode, StyleTheme, WatermarkConfig } from '../types';
+import { INTRO_EFFECT_LABELS, STYLE_THEME_LABELS } from '../types';
 import { AvatarPicker } from './common/AvatarPicker';
 
 import type { ChatScene } from '../types';
@@ -9,6 +9,7 @@ interface HeaderEditorProps {
   title: string;
   backgroundImage: string | null;
   opacity: number;
+  introEffect: IntroEffect;
   styleTheme: StyleTheme;
   watermark: WatermarkConfig;
   sessionId: string | null;
@@ -30,12 +31,19 @@ const BADGE_OPTIONS: { value: AIBadgeStyle; label: string }[] = [
   { value: 'retro', label: '复古印章' },
 ];
 
+const INTRO_EFFECT_OPTIONS: { value: IntroEffect; label: string }[] = [
+  { value: 'none', label: INTRO_EFFECT_LABELS.none },
+  { value: 'scanline', label: INTRO_EFFECT_LABELS.scanline },
+  { value: 'typewriter', label: INTRO_EFFECT_LABELS.typewriter },
+];
+
 /** 视觉风格设置：对话模式、标题、背景图片、透明度与 AI 角标样式。 */
 export function HeaderEditor({
   mode,
   title,
   backgroundImage,
   opacity,
+  introEffect,
   styleTheme,
   watermark,
   sessionId,
@@ -131,6 +139,27 @@ export function HeaderEditor({
             onChange={(e) => onChange({ opacity: parseFloat(e.target.value) })}
           />
           <span className="range-value">{Math.round(opacity * 100)}%</span>
+        </div>
+      </div>
+
+      <div className="form-row">
+        <span className="form-label">开头特效</span>
+        <div className="radio-group">
+          {INTRO_EFFECT_OPTIONS.map((o) => (
+            <label
+              key={o.value}
+              className={`radio-option${introEffect === o.value ? ' radio-option--active' : ''}`}
+            >
+              <input
+                type="radio"
+                name="intro-effect"
+                value={o.value}
+                checked={introEffect === o.value}
+                onChange={() => onChange({ intro_effect: o.value })}
+              />
+              {o.label}
+            </label>
+          ))}
         </div>
       </div>
 

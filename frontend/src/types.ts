@@ -4,6 +4,7 @@ export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
 export type VideoKind = 'chat';
 export type VideoTemplate = 'cyberpunk' | 'watercolor' | 'pixel' | 'comic' | 'noir' | 'ink';
 export type StyleTheme = VideoTemplate;
+export type IntroEffect = 'none' | 'scanline' | 'typewriter';
 export type Intent =
   | 'short_video_drama'
   | 'story_visualization'
@@ -25,6 +26,12 @@ export const STYLE_THEME_LABELS: Record<StyleTheme, string> = {
   comic: '漫画',
   noir: '黑白胶片',
   ink: '水墨',
+};
+
+export const INTRO_EFFECT_LABELS: Record<IntroEffect, string> = {
+  none: '无特效',
+  scanline: '扫描线展开',
+  typewriter: '打字机标题',
 };
 
 /** 各主题首次启用时的推荐背景色。 */
@@ -70,6 +77,7 @@ export interface ChatScene {
   background_image_url: string | null; // '/uploads/xxx.png' or null
   duration_ms: number | null; // null = auto
   opacity: number; // 0-1, default 1
+  intro_effect: IntroEffect; // default 'none'
   style_theme: StyleTheme;
   intent: Intent;
   intent_acknowledged: boolean; // must agree to compliance terms

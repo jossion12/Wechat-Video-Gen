@@ -36,6 +36,7 @@ Jinja2 渲染时收到如下变量（由 `renderer.py` 注入）：
     "background": str,                   # config.background
     "background_image_url": str | None,  # config.background_image_url
     "style_theme": str,                  # config.style_theme
+    "intro_effect": str,                 # config.intro_effect ("none" / "scanline" / "typewriter")
     "intent_label": str,                 # config.intent
     "participants": list[dict],          # [{id, name, avatar_url, persona, css_class}]
     "messages": list[dict],              # 渲染好的消息列表（已加 css_class / is_self）
@@ -125,14 +126,18 @@ Jinja2 渲染时收到如下变量（由 `renderer.py` 注入）：
 
 ```python
 timeline = [{"id": "__disclaimer__", "at": 0, "type": "disclaimer"}]
+intro_duration = INTRO_DURATION_MS if config.intro_effect != "none" else 0
 start_idx = 0
-t = 1000  # 声明卡显示 1s
+t = 1000 + intro_duration  # 声明卡显示 1s, 再播放 intro
+
+if intro_duration:
+    timeline.append({"id": "__intro__", "at": 1000, "type": "intro", "effect": config.intro_effect})
 
 first_msg = messages[0] if messages else None
 if first_msg and first_msg.kind == "timestamp" and first_msg.text:
     timeline.append({"id": "m1", "at": t, "type": "timestamp"})
     start_idx = 1
-    t = 1700
+    t += 700
 
 for i, m in enumerate(messages[start_idx:], start=start_idx + 1):
     timeline.append({
@@ -145,7 +150,10 @@ for i, m in enumerate(messages[start_idx:], start=start_idx + 1):
     t += m.delay_ms
 ```
 
-`TIMELINE` 第一条固定是 `__disclaimer__`，对应片头 AI 声明卡，1 秒后淡出。
+`TIMELINE` 第一条固定是 `__disclaimer__`，对应片片 AI 声明卡，1 秒后淡出。
+若 `config.intro_effect != "none"`，则在 `t = 1000` 时插入一条 `type: "intro"` 事件，
+由模板中的 `#intro-overlay` 播放对应特效；intro 默认持续 `INTRO_DURATION_MS = 1000ms`，
+之后第一条消息才会出现。
 
 ## 4.8 时长计算
 
@@ -192,7 +200,8 @@ def auto_duration(messages, first_delay_ms=1000):
 3. 在 `backend/app/renderer.py` 的 `render_dsl()` 分支中增加新 `template`
 4. 前端 `frontend/src/types.ts` 同步扩展 `VideoTemplate` / `StyleTheme` / `STYLE_THEME_LABELS`
 5. 前端 `HeaderEditor` 与 `StaticPreview` 增加对应主题样式
-6. 跑 `backend/tests/test_renderer.py` 验证渲染产物
+6. 若该风格支持 `intro_effect`，在模板中加入 `#intro-overlay` 及 `scanline / typewriter` 的 CSS/JS
+7. 跑 `backend/tests/test_renderer.py` 验证渲染产物
 
 ## 4.12 模板测试
 
@@ -212,6 +221,9 @@ def auto_duration(messages, first_delay_ms=1000):
 - ✅ 缺头像 URL 的消息用默认占位（风格决定形状）
 - ✅ 高敏感词与真实平台名触发校验错误
 - ✅ 带 `reply_to` 的消息在 4 种风格下渲染出 `.reply-quote` 引用块
+- ✅ 启用 `intro_effect` 时 TIMELINE 包含 `__intro__` 并顺延后续消息
+- ✅ 6 种风格在 `scanline / typewriter` 下渲染出 `#intro-overlay`
+- ✅ `intro_effect == "none"` 时不渲染 `#intro-overlay`
 
 ## 4.13 调试技巧
 

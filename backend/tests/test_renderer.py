@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from app.dsl import ChatScene, VideoDSL, auto_duration
 from app.models import Message, Participant
 from app.renderer import (
+    INTRO_DURATION_MS,
     build_timeline,
     render_dsl,
     resolve_duration_ms,
@@ -122,6 +123,25 @@ def test_timeline_includes_disclaimer_card():
     assert timeline[0] == {"id": "__disclaimer__", "at": 0, "type": "disclaimer"}
 
 
+def test_timeline_includes_intro_effect_when_enabled():
+    """✅ 启用 intro_effect 时 TIMELINE 包含 __intro__ 节点并顺延后续消息。"""
+    dsl = make_dsl(intro_effect="scanline")
+    timeline = build_timeline(dsl.scene)
+    assert timeline[0] == {"id": "__disclaimer__", "at": 0, "type": "disclaimer"}
+    assert timeline[1] == {"id": "__intro__", "at": 1000, "type": "intro", "effect": "scanline"}
+    # 第一条消息应在声明卡 1s + intro 之后
+    assert timeline[2]["at"] == 1000 + INTRO_DURATION_MS
+
+
+def test_timeline_no_intro_effect_when_disabled():
+    """✅ 关闭 intro_effect 时 TIMELINE 不包含 __intro__。"""
+    dsl = make_dsl(intro_effect="none")
+    timeline = build_timeline(dsl.scene)
+    ids = [t["id"] for t in timeline]
+    assert "__intro__" not in ids
+    assert timeline[1]["at"] == 1000
+
+
 def test_timeline_json_parses():
     """✅ TIMELINE JSON 合法可被 JSON.parse 解析。"""
     dsl = make_dsl()
@@ -189,6 +209,16 @@ def test_auto_duration_formula():
     assert auto_duration(msgs, first_delay_ms=1000) == 10000
     dsl = make_dsl(messages=msgs)
     assert resolve_duration_ms(dsl.scene) == 10000
+
+
+def test_auto_duration_includes_intro_effect():
+    """✅ 自动算时长把 intro_effect 的时间计入。"""
+    msgs = [
+        Message(sender_id="me", kind="text", text="x", delay_ms=1500) for _ in range(5)
+    ]
+    dsl = make_dsl(messages=msgs, intro_effect="scanline")
+    expected = 1000 + INTRO_DURATION_MS + 5 * 1500 + 1500
+    assert resolve_duration_ms(dsl.scene) == expected
 
 
 def test_explicit_duration_wins():
@@ -480,6 +510,29 @@ def test_disclaimer_card_always_rendered():
     html = render_dsl(dsl)
     assert 'id="__disclaimer__"' in html
     assert "本对话由 AI 生成" in html
+
+
+@pytest.mark.parametrize("template", ["cyberpunk", "watercolor", "pixel", "comic", "noir", "ink"])
+@pytest.mark.parametrize("effect", ["scanline", "typewriter"])
+def test_intro_effect_overlay_rendered(template, effect):
+    """✅ 6 种风格在启用特效时渲染对应的 #intro-overlay 子元素。"""
+    dsl = make_dsl(template=template, intro_effect=effect)
+    html = render_dsl(dsl)
+    assert 'id="__intro__"' in html
+    assert f'intro-{effect}' in html
+    if effect == "scanline":
+        assert 'class="intro-line"' in html
+        assert 'class="intro-mask"' in html
+    elif effect == "typewriter":
+        assert 'id="theater-title"' in html
+        assert 'class="intro-typewriter"' in html
+
+
+def test_intro_effect_none_does_not_render_overlay():
+    """✅ 关闭特效时不渲染 #intro-overlay。"""
+    dsl = make_dsl(intro_effect="none")
+    html = render_dsl(dsl)
+    assert 'id="__intro__"' not in html
 
 
 # ---- 合规校验 ----

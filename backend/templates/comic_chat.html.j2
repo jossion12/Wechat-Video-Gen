@@ -76,7 +76,7 @@
   .theater-header {
     height: 120px; flex: none;
     display: flex; align-items: center; justify-content: center;
-    padding: 0 40px; position: relative; z-index: 10;
+    padding: 0 40px; position: relative; z-index: 10000;
     background: var(--paper);
     border-bottom: 5px solid var(--ink);
     box-shadow: 0 6px 0 var(--pop-yellow);
@@ -85,6 +85,16 @@
     font-size: 46px; font-weight: 900; letter-spacing: 1px;
     color: var(--ink); text-transform: uppercase;
     text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .theater-title.typewriter::after {
+    content: "";
+    display: inline-block;
+    width: 4px;
+    height: 0.8em;
+    background: currentColor;
+    margin-left: 8px;
+    vertical-align: middle;
+    animation: cursor-blink 0.7s step-end infinite;
   }
   /* ---- 聊天区 ---- */
   .chat-wrap { flex: 1; min-height: 0; overflow: hidden; position: relative; z-index: 10; }
@@ -255,6 +265,48 @@
     color: #fff; background: var(--pop-red); border-color: var(--ink);
     box-shadow: 4px 4px 0 var(--pop-yellow);
   }
+
+  /* ---- 开头特效 ---- */
+  .intro-overlay {
+    position: absolute; inset: 0; z-index: 9000;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none; opacity: 1;
+  }
+  .intro-overlay.done { display: none; }
+
+  /* scanline-reveal：顶部线条从左向右展开，随后带着下边缘向下揭开整个画面，最后消失 */
+  .intro-line {
+    position: absolute; top: 0; left: 0;
+    width: 0; height: 6px;
+    background: var(--ink);
+    box-shadow: 0 0 0 4px var(--pop-yellow);
+    z-index: 2;
+  }
+  .intro-mask {
+    position: absolute; inset: 0;
+    background: var(--bg);
+    clip-path: inset(0 0 0 0);
+    z-index: 1;
+  }
+  .intro-overlay.start .intro-line {
+    animation: scanline-grow 0.25s ease-out forwards,
+               scanline-sweep 1.5s ease-out 0.25s forwards;
+  }
+  .intro-overlay.start .intro-mask { animation: scanline-open 1.5s ease-out 0.25s forwards; }
+  @keyframes scanline-grow { to { width: 100%; } }
+  @keyframes scanline-open { to { clip-path: inset(100% 0 0 0); } }
+  @keyframes scanline-sweep {
+    0% { top: 0; opacity: 1; }
+    85% { top: 100%; opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  /* typewriter-title */
+  .intro-overlay.typewriter { background: #ffffff; }
+  .intro-typewriter { text-align: center; z-index: 2; }
+  .intro-overlay.typewriter.fade-out { animation: typewriter-fade 0.3s ease-out forwards; }
+  @keyframes cursor-blink { 50% { opacity: 0; } }
+  @keyframes typewriter-fade { to { opacity: 0; } }
 </style>
 </head>
 <body>
@@ -265,9 +317,21 @@
     <div class="disclaimer-text">{{ disclaimer_text }}</div>
   </div>
 
+  {% if intro_effect != "none" %}
+  <!-- 开头特效层 -->
+  <div class="intro-overlay intro-{{ intro_effect }}" id="__intro__">
+    {% if intro_effect == "scanline" %}
+      <div class="intro-line"></div>
+      <div class="intro-mask"></div>
+    {% elif intro_effect == "typewriter" %}
+      <div class="intro-typewriter"></div>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <!-- 顶部标题栏 -->
   <div class="theater-header">
-    <div class="theater-title">{{ title }}</div>
+    <div class="theater-title" id="theater-title"></div>
   </div>
 
   <!-- 聊天区 -->
@@ -355,6 +419,9 @@
 
 <script>
   const TIMELINE = {{ timeline | tojson }};
+  const TYPEWRITER_TITLE = {{ title | tojson }};
+  const TYPEWRITER_INITIAL_MS = {{ typewriter_initial_ms }};
+  const TYPEWRITER_PER_CHAR_MS = {{ typewriter_per_char_ms }};
   const chatWrap = document.getElementById('chat-wrap');
   const chatInner = document.getElementById('chat-inner');
 
@@ -383,6 +450,23 @@
     });
   }
 
+  function typewriteTitle(el, text, initialMs, perCharMs, onDone) {
+    el.textContent = '';
+    setTimeout(() => {
+      let i = 0;
+      function next() {
+        if (i < text.length) {
+          el.textContent += text[i];
+          i++;
+          setTimeout(next, perCharMs);
+        } else if (onDone) {
+          onDone();
+        }
+      }
+      next();
+    }, initialMs);
+  }
+
   window.addEventListener('load', () => {
     setTimeout(() => {
       TIMELINE.forEach(t => setTimeout(() => {
@@ -390,6 +474,21 @@
         if (!el) return;
         if (t.type === 'disclaimer') {
           el.classList.add('hide');
+          return;
+        }
+        if (t.type === 'intro') {
+          el.classList.add('start');
+          if (el.classList.contains('intro-typewriter')) {
+            const headerTitleEl = document.getElementById('theater-title');
+            headerTitleEl.classList.add('typewriter');
+            typewriteTitle(headerTitleEl, TYPEWRITER_TITLE, TYPEWRITER_INITIAL_MS, TYPEWRITER_PER_CHAR_MS, () => {
+              headerTitleEl.classList.remove('typewriter');
+              el.classList.add('fade-out');
+              setTimeout(() => el.classList.add('done'), 300);
+            });
+          } else {
+            setTimeout(() => el.classList.add('done'), {{ intro_duration_ms }});
+          }
           return;
         }
         el.classList.add('show');

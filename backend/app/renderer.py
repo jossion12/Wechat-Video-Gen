@@ -7,10 +7,15 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.dsl import ChatScene, VideoDSL, auto_duration
-from app.models import DISCLAIMER_CARD_TEXT, Message
+from app.models import DISCLAIMER_CARD_TEXT, INTRO_EFFECTS, Message
 from app.storage import BASE_URL
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
+
+INTRO_DURATION_MS = 1800  # 扫描线开场特效持续时长
+TYPEWRITER_INITIAL_MS = 200  # 打字机标题初始停顿
+TYPEWRITER_PER_CHAR_MS = 180  # 打字机标题每个字符间隔
+TYPEWRITER_FADE_MS = 300  # 打字机标题完成后淡出时长
 
 _env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
@@ -50,6 +55,21 @@ def _seal_char(text: str | None) -> str:
         if "\u4e00" <= first <= "\u9fff":
             return first
     return "印"
+
+
+def resolve_intro_duration_ms(config: ChatScene) -> int:
+    """根据 intro_effect 与标题长度计算开场特效实际时长。
+
+    - typewriter: 初始停顿 + 逐字间隔 + 淡出
+    - scanline: 固定 INTRO_DURATION_MS
+    - none: 0
+    """
+    if config.intro_effect == "none":
+        return 0
+    if config.intro_effect == "typewriter":
+        chars = len(config.title or "")
+        return TYPEWRITER_INITIAL_MS + chars * TYPEWRITER_PER_CHAR_MS + TYPEWRITER_FADE_MS
+    return INTRO_DURATION_MS
 
 
 def build_participants(config: ChatScene) -> list[dict]:
@@ -191,17 +211,25 @@ def build_messages(config: ChatScene) -> list[dict]:
     return out
 
 
-def build_timeline(config: ChatScene) -> list[dict]:
-    """生成 TIMELINE 数组 — 开头固定 1s AI 声明卡,然后按消息 delay 推进。"""
+def build_timeline(config: ChatScene, intro_duration_ms: int | None = None) -> list[dict]:
+    """生成 TIMELINE 数组 — 开头固定 1s AI 声明卡,可选 intro 特效,然后按消息 delay 推进。"""
     timeline: list[dict] = [{"id": "__disclaimer__", "at": 0, "type": "disclaimer"}]
+    if intro_duration_ms is None:
+        intro_duration_ms = resolve_intro_duration_ms(config)
+    intro_duration = intro_duration_ms if config.intro_effect != "none" else 0
     start_idx = 0
-    t = 1000  # 声明卡显示 1s,第一条消息在 1s 后显示
+    t = 1000 + intro_duration  # 声明卡显示 1s,再播放 intro,之后显示第一条消息
+
+    if intro_duration:
+        timeline.append(
+            {"id": "__intro__", "at": 1000, "type": "intro", "effect": config.intro_effect}
+        )
 
     first_msg = config.messages[0] if config.messages else None
     if first_msg and first_msg.kind == "timestamp" and first_msg.text:
         timeline.append({"id": "m1", "at": t, "type": "timestamp"})
         start_idx = 1
-        t = 1700
+        t += 700
 
     for i, m in enumerate(config.messages[start_idx:], start=start_idx + 1):
         timeline.append(
@@ -220,18 +248,24 @@ def build_timeline(config: ChatScene) -> list[dict]:
     return timeline
 
 
-def resolve_duration_ms(config: ChatScene) -> int:
-    """总时长:用户显式传 duration_ms 则用用户值,否则自动算(含 1s 声明卡)。"""
+def resolve_duration_ms(config: ChatScene, intro_duration_ms: int | None = None) -> int:
+    """总时长:用户显式传 duration_ms 则用用户值,否则自动算(含 1s 声明卡 + intro 时长)。"""
     if config.duration_ms is not None:
         return config.duration_ms
+    if intro_duration_ms is None:
+        intro_duration_ms = resolve_intro_duration_ms(config)
+    intro_duration = intro_duration_ms if config.intro_effect != "none" else 0
     first_msg = config.messages[0] if config.messages else None
-    first_delay_ms = 1700 if first_msg and first_msg.kind == "timestamp" else 1000
+    first_delay_ms = 1000 + intro_duration
+    if first_msg and first_msg.kind == "timestamp":
+        first_delay_ms += 700
     return auto_duration(config.messages, first_delay_ms=first_delay_ms)
 
 
 def render_chat(scene: ChatScene, template: str) -> str:
     """渲染对话剧场场景 HTML。预览与录制共用同一入口。"""
     tmpl = load_template(template)
+    intro_duration_ms = resolve_intro_duration_ms(scene)
     ctx = {
         "config": scene,
         "mode": scene.mode,
@@ -243,11 +277,15 @@ def render_chat(scene: ChatScene, template: str) -> str:
         "intent_label": scene.intent,
         "participants": build_participants(scene),
         "messages": build_messages(scene),
-        "timeline": build_timeline(scene),
-        "duration_ms": resolve_duration_ms(scene),
+        "timeline": build_timeline(scene, intro_duration_ms),
+        "duration_ms": resolve_duration_ms(scene, intro_duration_ms),
         "disclaimer_text": DISCLAIMER_CARD_TEXT,
         "ai_badge_style": scene.watermark.badge_style,
         "watermark_text": scene.watermark.text,
+        "intro_effect": scene.intro_effect,
+        "intro_duration_ms": intro_duration_ms,
+        "typewriter_initial_ms": TYPEWRITER_INITIAL_MS,
+        "typewriter_per_char_ms": TYPEWRITER_PER_CHAR_MS,
     }
     return tmpl.render(**ctx)
 
