@@ -7,7 +7,7 @@
   /* ---- 漫画风 ---- */
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
   :root {
-    --bg: {{ background }};
+    {% if background_visible %}--bg: {{ background }};{% endif %}
     --ink: #1a1a1a;
     --paper: #ffffff;
     --pop-red: #ff3b3b;
@@ -18,14 +18,14 @@
     --self-bg: #fff9c4;
     --other-bg: #ffffff;
   }
-  html, body { overflow: hidden; background: var(--bg); }
+  html, body { overflow: hidden; {% if background_visible %}background: var(--bg);{% endif %} }
   body {
     width: 1080px; height: 1920px; position: relative; color: var(--text);
     display: flex; flex-direction: column;
     font-family: "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "Arial Black", sans-serif;
     opacity: {{ opacity }};
   }
-  {% if background_image_url %}
+  {% if background_visible and background_image_url %}
   body::before {
     content: ""; position: absolute; inset: 0;
     background-image: url('{{ background_image_url }}');
@@ -34,6 +34,7 @@
   }
   {% endif %}
 
+  {% if background_visible %}
   /* 半调网点纹理 */
   body::after {
     content: ""; position: absolute; inset: 0;
@@ -41,6 +42,7 @@
     background-size: 8px 8px;
     pointer-events: none; z-index: 9998;
   }
+  {% endif %}
 
   /* ---- 声明卡 ---- */
   .disclaimer-card {
@@ -331,7 +333,7 @@
 
   <!-- 顶部标题栏 -->
   <div class="theater-header">
-    <div class="theater-title" id="theater-title"></div>
+    <div class="theater-title" id="theater-title">{% if intro_effect != "typewriter" %}{{ title }}{% endif %}</div>
   </div>
 
   <!-- 聊天区 -->

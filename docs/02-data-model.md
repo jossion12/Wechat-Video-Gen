@@ -73,6 +73,7 @@ class ChatScene(BaseModel):
     title: str = "对话剧场"
     background: str = "#ffffff"
     background_image_url: str | None = None
+    background_visible: bool = True        # False 仅显示聊天元素,隐藏背景色/背景图/装饰层
     duration_ms: int | None = None         # None = 自动算
     opacity: float = 1.0                   # 0-1，整个内容透明度
     style_theme: Literal["cyberpunk", "watercolor", "pixel", "comic"] = "cyberpunk"
@@ -89,6 +90,7 @@ class ChatScene(BaseModel):
 | `title` | string | ✗ | `对话剧场` | 顶部居中标题 |
 | `background` | hex color | ✗ | `#ffffff` | 整页背景色（漫画主题浅色底） |
 | `background_image_url` | string 或 null | ✗ | `null` | 整页背景图（`/uploads/<uuid>.png`）；有值时以低透明度叠加于背景色之上 |
+| `background_visible` | bool | ✗ | `true` | 纯 UI 层模式开关；`false` 时渲染时隐藏背景色 / 背景图 / 主题装饰层（赛博朋克扫描线、水墨宣纸纤维等），仅保留聊天元素（消息、头像、气泡） |
 | `duration_ms` | int 或 null | ✗ | 自动 | 总录制时长(ms)；`None` 时后端按消息数算 |
 | `opacity` | float | ✗ | `1.0` | 整个内容透明度，0-1 |
 | `style_theme` | enum | ✗ | `cyberpunk` | 视觉风格：`cyberpunk` / `watercolor` / `pixel` / `comic` |
@@ -245,12 +247,99 @@ class Job(BaseModel):
 
 预期产出：约 13s 的赛博朋克风格群像对话视频，带片头 AI 声明卡与右下角 AI 角标。
 
-## 2.8 字段约束与错误码
+## 2.8 `timeline.json` — 时间码导出
+
+每次渲染成功（不透明 mp4 / 透明 webm / 透明 mov 任一产物线）都会在
+`storage/users/{user_id}/sessions/{session_id}/outputs/{job_id}.timeline.json`
+落一份时间码 JSON，记录 disclaimer / intro / 每条消息的精确出现 / 消失时刻
+（毫秒，相对视频起点 0）。前端通过 `GET /api/jobs/{job_id}/timeline` 拉取，
+详见 `docs/03-api.md §3.x 时间码导出` 与 `docs/04-template.md §4.14`。
+
+```python
+class TimelineEntry:
+    id: str                          # 事件 id:disclaimer/intro 取固定值,消息取 "mN"
+    at: int                          # 出现时刻(毫秒,相对视频起点 0)
+    type: Literal["disclaimer", "intro", "msg", "sys", "timestamp"]
+    kind: str                        # 渲染字段:disclaimer / intro / text / image /
+                                    # sys / timestamp / video / emoji
+    sender_id: str                   # "__system__" 或 participant.id
+    sender_name: str                 # 显示名,系统消息为空
+    summary: str                     # 表格用摘要:文字取首行,图片/视频/emoji 加类型前缀
+    text: str | None
+    image_url: str | None            # 已用 BASE_URL 补成绝对 URL
+    video_url: str | None
+    duration: str | None             # 视频消息的时长字符串,如 "0:10"
+    appeared_at: int                 # = at(冗余字段,方便前端排序/过滤)
+    disappeared_at: int              # 消失时刻(毫秒)
+    duration_ms: int                 # disappeared_at - appeared_at
+```
+
+```json
+{
+  "schema_version": "1.0",
+  "kind": "chat",
+  "job_id": "abc123",
+  "total_duration_ms": 5500,
+  "entries": [
+    {
+      "id": "__disclaimer__",
+      "at": 0,
+      "type": "disclaimer",
+      "kind": "disclaimer",
+      "sender_id": "__system__",
+      "sender_name": "",
+      "summary": "本对话由 AI 生成,仅供创意表达",
+      "text": "本对话由 AI 生成,仅供创意表达",
+      "image_url": null,
+      "video_url": null,
+      "duration": null,
+      "appeared_at": 0,
+      "disappeared_at": 1000,
+      "duration_ms": 1000
+    },
+    {
+      "id": "m1",
+      "at": 1000,
+      "type": "msg",
+      "kind": "text",
+      "sender_id": "me",
+      "sender_name": "我",
+      "summary": "在吗",
+      "text": "在吗",
+      "image_url": null,
+      "video_url": null,
+      "duration": null,
+      "appeared_at": 1000,
+      "disappeared_at": 2500,
+      "duration_ms": 1500
+    }
+  ]
+}
+```
+
+**消失语义**：
+- 一条消息在**下一条事件出现**时消失（对应模板里"新消息把上一条顶出聊天区"的视觉）
+- 最后一条事件（disclaimer / intro / 末条消息）在场景总时长 `total_duration_ms` 处消失
+- `duration_ms` 永远 ≥ 0；`disappeared_at - appeared_at` 严格对应消息在屏幕上停留的时长
+
+**生成时机**：
+- `backend/app/renderer.py::build_timeline_with_durations()` 是数据来源（与 `build_timeline()`
+  并列、互不影响；后者继续驱动模板 JS 动画时间轴）
+- `backend/app/recorder.py::_write_timeline_json()` 在 `render_video()` /
+  `render_video_transparent()` 两条产物线里都调用 — 转码成功后才落盘
+- 渲染失败时 `timeline.json` 与 `mp4/webm/mov` 一起被 `try/except` 清理
+
+**适用范围**：
+- 透明 / 不透明两条产物线都支持（同一份 timeline 数据，不依赖像素）
+- 7 种风格（cyberpunk / watercolor / pixel / comic / noir / ink / green_screen）通用
+- 数据来源完全在 DSL 层（不依赖 Playwright 录制帧），跨平台 / 跨环境结果一致
+
+## 2.9 字段约束与错误码
 
 `/api/preview-html` 与 `/api/render` 收到非法 `ChatScene` 时，FastAPI 自动返回 422 + 校验错误明细。
 前端应在编辑时做客户端预校验，服务端再校验一次。
 
-## 2.9 与前端的类型同步
+## 2.10 与前端的类型同步
 
 `frontend/src/types.ts` 内定义等价的 TS 类型，与 Pydantic 字段一一对应。
 后端变更模型时，前端同步修改。**不做自动生成**（避免引入额外构建复杂度）。

@@ -143,6 +143,70 @@ async def test_worker_failure_does_not_crash(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_worker_dispatches_transparent_webm(monkeypatch, tmp_path):
+    """✅ dsl.transparent=True + transparent_format='webm_vp9_alpha'
+       → 调 render_video_transparent(..., format='webm_vp9_alpha');
+       dsl.transparent=False → 调 render_video。
+    """
+    calls: list[tuple[str, str]] = []
+
+    async def fake_transparent(dsl, job_id, user_id, session_id, progress_callback, *, format):
+        calls.append(("transparent", format))
+        # 模拟产物落盘
+        from app.storage import output_path, OUTPUT_EXT_WEBM_ALPHA
+        p = output_path(user_id, session_id, job_id, OUTPUT_EXT_WEBM_ALPHA)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"fake webm")
+        return p
+
+    async def fake_opaque(dsl, job_id, user_id, session_id, progress_callback):
+        calls.append(("opaque", "mp4"))
+        from app.storage import output_path, OUTPUT_EXT
+        p = output_path(user_id, session_id, job_id, OUTPUT_EXT)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"fake mp4")
+        return p
+
+    monkeypatch.setattr(queue.recorder, "render_video_transparent", fake_transparent)
+    monkeypatch.setattr(queue.recorder, "render_video", fake_opaque)
+
+    # 入队一个透明 webm 任务
+    user_id = "u-trans"
+    await db.upsert_user_async(user_id)
+    sess = await db.create_session_async(user_id, f"s-{user_id}")
+    webm_dsl = make_dsl()
+    # Pydantic v2:直接 model_copy 改字段
+    webm_dsl = webm_dsl.model_copy(update={
+        "transparent": True,
+        "transparent_format": "webm_vp9_alpha",
+    })
+    job_webm = await queue.enqueue(webm_dsl, sess["id"], user_id)
+    assert (await db.get_job_async(job_webm))["output_ext"] == "webm"
+    await queue._process_job(job_webm)
+
+    # 入队一个透明 mov 任务
+    mov_dsl = make_dsl().model_copy(update={
+        "transparent": True,
+        "transparent_format": "mov_prores4444",
+    })
+    job_mov = await queue.enqueue(mov_dsl, sess["id"], user_id)
+    assert (await db.get_job_async(job_mov))["output_ext"] == "mov"
+    await queue._process_job(job_mov)
+
+    # 入队一个不透明任务(回归测试)
+    opaque_dsl = make_dsl()
+    job_opaque = await queue.enqueue(opaque_dsl, sess["id"], user_id)
+    assert (await db.get_job_async(job_opaque))["output_ext"] == "mp4"
+    await queue._process_job(job_opaque)
+
+    assert calls == [
+        ("transparent", "webm_vp9_alpha"),
+        ("transparent", "mov_prores4444"),
+        ("opaque", "mp4"),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_subscribe_publish_and_current_event():
     """SSE 订阅/发布/当前状态快照。"""
     job_id = await _enqueue_test_job()

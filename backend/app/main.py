@@ -45,9 +45,12 @@ from app.storage import (
     ALLOWED_MIME,
     MAX_UPLOAD_SIZE,
     OUTPUT_EXT,
+    OUTPUT_MIME,
+    TIMELINE_MIME,
     output_path,
     remove_session,
     save_upload_bytes,
+    timeline_path,
     upload_path,
     warn_legacy_storage,
 )
@@ -130,8 +133,16 @@ def _file_to_info(file_row: dict) -> FileInfo:
 
 def _job_to_summary(job_row: dict) -> JobSummary:
     out = None
+    timeline_url = None
     if job_row["status"] == "done":
         out = f"/api/jobs/{job_row['id']}/output"
+        # 与 queue.get_job_status 保持一致:disk 上有 timeline.json 才暴露链接,
+        # 老 job / 失败任务 / 透明产物下 timeline 缺失时留 None。
+        tl = timeline_path(
+            job_row["user_id"], job_row["session_id"], job_row["id"]
+        )
+        if tl.is_file():
+            timeline_url = f"/api/jobs/{job_row['id']}/timeline"
     return JobSummary(
         id=job_row["id"],
         session_id=job_row["session_id"],
@@ -139,6 +150,7 @@ def _job_to_summary(job_row: dict) -> JobSummary:
         status=job_row["status"],
         progress=job_row["progress"],
         output_url=out,
+        timeline_url=timeline_url,
         error=job_row["error"],
         created_at=job_row["created_at"],
         finished_at=job_row["finished_at"],
@@ -466,11 +478,39 @@ async def serve_output(
         raise HTTPException(404, "job not found")
     if row["status"] != "done":
         raise HTTPException(409, "job not finished")
-    p = output_path(row["user_id"], row["session_id"], row["id"],
-                    row.get("output_ext") or OUTPUT_EXT)
+    ext = row.get("output_ext") or OUTPUT_EXT
+    p = output_path(row["user_id"], row["session_id"], row["id"], ext)
     if not p.is_file():
         raise HTTPException(404, "output missing on disk")
-    return FileResponse(p, media_type="video/mp4", filename=f"{row['id']}.mp4")
+    # 透明背景产物走 video/webm (VP9+alpha) 或 video/quicktime (ProRes 4444);
+    # 旧 mp4 任务保持 video/mp4。
+    media_type = OUTPUT_MIME.get(ext, "application/octet-stream")
+    return FileResponse(p, media_type=media_type, filename=f"{row['id']}.{ext}")
+
+
+@app.get("/api/jobs/{job_id}/timeline")
+async def serve_timeline(
+    job_id: str,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """返回时间码 JSON(见 docs/03-api.md §3.x 时间码导出 + docs/04-template.md §4.14)。
+
+    所有权 / 完成态 / 磁盘存在性校验与 `serve_output` 同模板:
+      - 任务不存在或不属于当前用户 → 404(不泄露存在性)
+      - 任务未完成 → 409
+      - timeline.json 缺失 → 404(产物存在但 timeline 不存在:老 job / 透明
+        路径下编码失败等 — 前端按钮会因 timeline_url=None 而隐藏,这里再补
+        一道 404 防止直链访问)
+    """
+    row = await asyncio.to_thread(db.get_job, job_id)
+    if row is None or row["user_id"] != user.id:
+        raise HTTPException(404, "job not found")
+    if row["status"] != "done":
+        raise HTTPException(409, "job not finished")
+    p = timeline_path(row["user_id"], row["session_id"], row["id"])
+    if not p.is_file():
+        raise HTTPException(404, "timeline missing on disk")
+    return FileResponse(p, media_type=TIMELINE_MIME, filename=f"{row['id']}.timeline.json")
 
 
 # ---------- 预览 / 渲染 ----------
@@ -484,11 +524,22 @@ async def preview_html(
 
     与 /api/render 同样鉴权 + session 归属校验,避免渲染 HTML 被任意访问
     与 session 枚举。渲染走 to_thread,避免 CPU 密集的 Jinja 阻塞事件循环。
+
+    预览模式下注入一段 CSS 隐藏 `#intro-typewriter-text` —— 这个元素只在
+    green_screen 模板的 typewriter 模式下出现,目的是让抠像输出保留中间的打字机字
+    (因为顶部标题栏在绿幕下也会被抠掉)。但预览里它与顶部 #theater-title 的
+    打字机效果重复,显得多余;实际录制(透明/不透明两条路径)必须保留这个元素。
     """
     sess = await asyncio.to_thread(db.get_session, body.session_id)
     if sess is None or sess["user_id"] != user.id:
         raise HTTPException(404, "session not found")
     html = await asyncio.to_thread(render_dsl, body.dsl)
+    preview_only_css = (
+        "<style>/* preview-only: hide green_screen mid-screen typewriter text"
+        " (kept in real render for keying) */"
+        "#intro-typewriter-text { display: none !important; }</style>"
+    )
+    html = html.replace("</head>", preview_only_css + "</head>", 1)
     return {"html": html}
 
 
@@ -547,12 +598,19 @@ async def job_events(
     job = await queue.get_job_for_user(job_id, user.id)
     if job is None:
         raise HTTPException(404, "job not found")
+    tl_initial = timeline_path(job["user_id"], job["session_id"], job["id"])
     snap = {
         "id": job["id"],
         "status": job["status"],
         "progress": job["progress"],
         "error": job.get("error"),
         "output_url": f"/api/jobs/{job['id']}/output",
+        # SSE 初始快照里也带 output_ext,前端订阅时立即知道产物格式。
+        "output_ext": job.get("output_ext"),
+        # timeline.json disk 上存在时附带链接,前端 SSE 立刻就能看到「查看时间码」按钮。
+        "timeline_url": (
+            f"/api/jobs/{job['id']}/timeline" if tl_initial.is_file() else None
+        ),
     }
 
     async def event_stream():
@@ -565,12 +623,21 @@ async def job_events(
         try:
             latest = await db.get_job_async(job_id)
             if latest is not None and latest["status"] in ("done", "failed"):
+                tl2 = timeline_path(
+                    latest["user_id"], latest["session_id"], latest["id"]
+                )
                 snap2 = {
                     "id": latest["id"],
                     "status": latest["status"],
                     "progress": latest["progress"],
                     "error": latest.get("error"),
                     "output_url": f"/api/jobs/{latest['id']}/output",
+                    "output_ext": latest.get("output_ext"),
+                    "timeline_url": (
+                        f"/api/jobs/{latest['id']}/timeline"
+                        if tl2.is_file()
+                        else None
+                    ),
                 }
                 cur2 = await queue.current_event(snap2)
                 yield _sse(_event_type(cur2), cur2)

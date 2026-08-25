@@ -12,7 +12,11 @@ from app.dsl import ChatScene, VideoDSL, auto_duration
 from app.models import Message, Participant
 from app.renderer import (
     INTRO_DURATION_MS,
+    TYPEWRITER_INITIAL_MS,
+    TYPEWRITER_PER_CHAR_MS,
+    TYPEWRITER_FADE_MS,
     build_timeline,
+    build_timeline_with_durations,
     render_dsl,
     resolve_duration_ms,
     resolve_upload_url,
@@ -535,6 +539,28 @@ def test_intro_effect_none_does_not_render_overlay():
     assert 'id="__intro__"' not in html
 
 
+@pytest.mark.parametrize("effect", ["none", "scanline", "typewriter"])
+def test_title_always_rendered_in_header(effect):
+    """✅ 三种开头特效都把 #theater-title 渲染到 header 里;
+    none/scanline 直接渲染文本;typewriter 模式 #theater-title 初始为空,
+    由 JS typewriteTitle 把 TYPEWRITER_TITLE 逐字写入(玩家透过半透明 overlay 看到打字过程),
+    完成后保留。"""
+    import json
+
+    dsl = make_dsl(intro_effect=effect)
+    html = render_dsl(dsl)
+    assert 'id="theater-title"' in html
+    if effect == "typewriter":
+        # typewriter 模式:div 初始为空,文本以 const TYPEWRITER_TITLE = {{ title | tojson }} 形式交给 JS
+        assert 'id="theater-title"></div>' in html
+        assert "TYPEWRITER_TITLE" in html
+        # tojson 默认对非 ASCII 转义,断言其 unicode-escape 形式在 HTML 中
+        assert json.dumps("对话剧场", ensure_ascii=True) in html
+    else:
+        # 其他模式:文本直接渲染到 div
+        assert 'id="theater-title">对话剧场</div>' in html
+
+
 # ---- 合规校验 ----
 
 def test_missing_intent_rejected():
@@ -1014,3 +1040,169 @@ def test_ink_color_whitelist():
     for match in re.finditer(r"#([0-9a-fA-F]{3}){1,2}\b", html_for_check):
         color = match.group(0).lower()
         assert color in INK_ALLOWED_COLORS, f"ink theme contains unexpected color: {color}"
+
+
+# ---- build_timeline_with_durations(新,与 build_timeline 并列) ----
+
+def test_build_timeline_with_durations_basic():
+    """✅ 3 条消息 + intro=none → 5 条事件(disclaimer + 3 条消息 + ?)。
+    每条事件都有 appeared_at / disappeared_at / duration_ms,相邻事件 disappeared == 下一条 at,
+    最后一条 disappeared == total_duration_ms。
+    """
+    dsl = make_dsl(intro_effect="none")
+    total_ms = resolve_duration_ms(dsl.scene)
+    entries = build_timeline_with_durations(dsl.scene, total_duration_ms=total_ms)
+    # disclaimer + 3 msg
+    assert len(entries) == 4
+    assert [e["id"] for e in entries] == ["__disclaimer__", "m1", "m2", "m3"]
+
+    # appeared_at 与 build_timeline 对齐
+    timeline = build_timeline(dsl.scene)
+    for e, t in zip(entries, timeline):
+        assert e["at"] == t["at"]
+        assert e["appeared_at"] == t["at"]
+
+    # 消失语义:上一条 disappeared = 下一条 at;末条 = total_ms
+    assert entries[0]["disappeared_at"] == entries[1]["at"]  # disclaimer 让位给 m1
+    assert entries[1]["disappeared_at"] == entries[2]["at"]
+    assert entries[2]["disappeared_at"] == entries[3]["at"]
+    assert entries[3]["disappeared_at"] == total_ms
+
+    # duration_ms 永远 ≥ 0
+    for e in entries:
+        assert e["duration_ms"] == e["disappeared_at"] - e["appeared_at"]
+        assert e["duration_ms"] >= 0
+
+
+def test_build_timeline_with_durations_includes_intro():
+    """✅ intro_effect=scanline 时多一条 __intro__,intro 在声明卡之后、首条消息之前。"""
+    dsl = make_dsl(intro_effect="scanline")
+    entries = build_timeline_with_durations(dsl.scene)
+    assert [e["id"] for e in entries[:2]] == ["__disclaimer__", "__intro__"]
+    # intro 出现于 1000,消失于 1000 + INTRO_DURATION_MS
+    intro = entries[1]
+    assert intro["appeared_at"] == 1000
+    assert intro["disappeared_at"] == 1000 + INTRO_DURATION_MS
+    assert intro["type"] == "intro"
+    assert intro["kind"] == "intro"
+    # 条 3 是 m1,出现于 intro 结束时刻
+    assert entries[2]["appeared_at"] == 1000 + INTRO_DURATION_MS
+
+
+def test_build_timeline_with_durations_typewriter_intro_uses_title_length():
+    """✅ typewriter 模式下 intro_duration 取决于标题字符数,intro 区间应包含整段打字+淡出。"""
+    title = "很长的标题用于测试打字机效果"  # 14 个字符
+    expected_intro = (
+        TYPEWRITER_INITIAL_MS
+        + len(title) * TYPEWRITER_PER_CHAR_MS
+        + TYPEWRITER_FADE_MS
+    )
+    dsl = make_dsl(intro_effect="typewriter", title=title)
+    entries = build_timeline_with_durations(dsl.scene)
+    intro = next(e for e in entries if e["id"] == "__intro__")
+    assert intro["disappeared_at"] - intro["appeared_at"] == expected_intro
+
+
+def test_build_timeline_with_durations_first_timestamp_message():
+    """✅ 首条 timestamp 消息额外加 700ms 间隔,然后才轮到第二条消息出现。"""
+    dsl = make_dsl(
+        messages=[
+            Message(sender_id="__system__", kind="timestamp", text="19:00", delay_ms=1500),
+            Message(sender_id="her", kind="text", text="hi", delay_ms=1500),
+        ],
+    )
+    entries = build_timeline_with_durations(dsl.scene)
+    ids = [e["id"] for e in entries]
+    assert ids == ["__disclaimer__", "m1", "m2"]
+    # m1 (timestamp) 出现于 1000(无 intro),700ms 后 m2 出现
+    assert entries[1]["appeared_at"] == 1000
+    assert entries[2]["appeared_at"] == 1000 + 700
+    assert entries[1]["kind"] == "timestamp"
+    # 类型映射为 timeline 用的 type 字段
+    assert entries[1]["type"] == "timestamp"
+
+
+def test_build_timeline_with_durations_explicit_total_duration():
+    """✅ 用户显式传 total_duration_ms 时,末条 disappeared_at 与之一致。"""
+    dsl = make_dsl(intro_effect="none")
+    entries = build_timeline_with_durations(dsl.scene, total_duration_ms=30000)
+    assert entries[-1]["disappeared_at"] == 30000
+
+
+def test_build_timeline_with_durations_summaries():
+    """✅ summary 字段给前端表格用:文字取首行 / 图片 / 视频 / emoji / sys / timestamp 各有格式。"""
+    msgs = [
+        Message(sender_id="her", kind="text", text="第一行\n第二行", delay_ms=1500),
+        Message(sender_id="me", kind="image", image_url="/u/x.png", text="樱花", delay_ms=1500),
+        Message(sender_id="me", kind="video", video_url="/u/v.mp4", duration="0:10", delay_ms=1500),
+        Message(sender_id="her", kind="emoji", text="🤔", delay_ms=1500),
+        Message(sender_id="__system__", kind="sys", text="第三章", delay_ms=1500),
+        Message(sender_id="__system__", kind="timestamp", text="12:00", delay_ms=1500),
+    ]
+    dsl = make_dsl(messages=msgs, intro_effect="none")
+    entries = build_timeline_with_durations(dsl.scene)
+    # 跳过 disclaimer
+    by_kind = {e["kind"]: e for e in entries if e["kind"] != "disclaimer"}
+    assert by_kind["text"]["summary"] == "第一行"
+    assert by_kind["image"]["summary"] == "[图片] 樱花"
+    assert by_kind["video"]["summary"] == "[视频]"  # video 没 text,strip 后不带尾随空格
+    assert by_kind["emoji"]["summary"] == "🤔"
+    assert by_kind["sys"]["summary"] == "第三章"
+    assert by_kind["timestamp"]["summary"] == "12:00"
+
+
+def test_build_timeline_with_durations_sender_metadata_for_msg():
+    """✅ 普通 / 时间戳消息带 sender_id,sys / timestamp 始终是 __system__。"""
+    dsl = make_dsl(intro_effect="none")
+    entries = build_timeline_with_durations(dsl.scene)
+    # m1 是 me 发的,m2 是 her
+    assert entries[1]["sender_id"] == "me"
+    assert entries[1]["sender_name"] == "我"
+    assert entries[2]["sender_id"] == "her"
+    assert entries[2]["sender_name"] == "她"
+
+
+def test_build_timeline_with_durations_message_image_url_inlined():
+    """✅ message 的 image_url / video_url 字段被透传(相对路径补成绝对 URL 来自 build_messages)。"""
+    dsl = make_dsl(
+        messages=[
+            Message(
+                sender_id="her",
+                kind="image",
+                image_url="/uploads/x.png",
+                text="x",
+                delay_ms=1500,
+            ),
+        ],
+    )
+    entries = build_timeline_with_durations(dsl.scene)
+    msg = next(e for e in entries if e["id"] == "m1")
+    assert msg["image_url"] == f"{BASE_URL}/uploads/x.png"
+
+
+def test_build_timeline_with_durations_at_matches_build_timeline():
+    """✅ 同一 scene 的 appeared_at 与 build_timeline 的 at 完全一致 — 时间码和模板 TIMELINE 对齐。"""
+    dsl = make_dsl(intro_effect="scanline")
+    timeline = build_timeline(dsl.scene)
+    entries = build_timeline_with_durations(dsl.scene)
+    timeline_at = [t["at"] for t in timeline]
+    entries_at = [e["at"] for e in entries]
+    assert entries_at == timeline_at
+
+
+def test_build_timeline_with_durations_does_not_mutate_existing_build_timeline():
+    """✅ 调用 build_timeline_with_durations 不影响 build_timeline 的返回值。"""
+    dsl = make_dsl()
+    before = build_timeline(dsl.scene)
+    _ = build_timeline_with_durations(dsl.scene)
+    after = build_timeline(dsl.scene)
+    assert before == after
+
+
+def test_build_timeline_with_durations_does_not_break_html_render():
+    """✅ build_timeline_with_durations 与渲染管线解耦 —— 不会改 HTML 产物。"""
+    dsl = make_dsl()
+    html_before = render_dsl(dsl)
+    _ = build_timeline_with_durations(dsl.scene)
+    html_after = render_dsl(dsl)
+    assert html_before == html_after

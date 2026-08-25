@@ -128,7 +128,12 @@ def _cursor() -> Iterator[sqlite3.Cursor]:
 
 
 def _ensure_columns(conn: sqlite3.Connection) -> None:
-    """向后兼容:对已有表追加后续版本新增的列。"""
+    """向后兼容:对已有表追加后续版本新增的列。
+
+    只增列、不删列、不改类型。SQLite 的 `ALTER TABLE ... ADD COLUMN ... NOT NULL
+    DEFAULT 'mp4'` 在已有数据上会回填默认值,等价于"把现存行标成 mp4 产物" —
+    升级前入库的旧 job 在升级后仍然会被识别为 mp4,不会丢失。
+    """
     existing = {
         r["name"]
         for r in conn.execute(
@@ -145,6 +150,12 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(files)").fetchall()}
         if "md5" not in cols:
             conn.execute("ALTER TABLE files ADD COLUMN md5 TEXT")
+    if "jobs" in existing:
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()}
+        if "output_ext" not in cols:
+            conn.execute(
+                "ALTER TABLE jobs ADD COLUMN output_ext TEXT NOT NULL DEFAULT 'mp4'"
+            )
 
 
 def init_schema() -> None:
@@ -403,13 +414,24 @@ def insert_job(
     session_id: str,
     user_id: str,
     config: dict,
+    output_ext: str = "mp4",
 ) -> dict:
     now = time.time()
+    if output_ext not in ("mp4", "webm", "mov"):
+        # 兜底:未知扩展名拒绝入库,避免后续 serve_output 取到非法路径。
+        raise ValueError(f"unsupported output_ext: {output_ext!r}")
     with _cursor() as cur:
         cur.execute(
             "INSERT INTO jobs(id, session_id, user_id, status, progress, config_json, output_ext, created_at) "
-            "VALUES (?, ?, ?, 'queued', 0, ?, 'mp4', ?)",
-            (job_id, session_id, user_id, json.dumps(config, ensure_ascii=False), now),
+            "VALUES (?, ?, ?, 'queued', 0, ?, ?, ?)",
+            (
+                job_id,
+                session_id,
+                user_id,
+                json.dumps(config, ensure_ascii=False),
+                output_ext,
+                now,
+            ),
         )
     return {
         "id": job_id,
@@ -418,7 +440,7 @@ def insert_job(
         "status": "queued",
         "progress": 0,
         "config_json": config,
-        "output_ext": "mp4",
+        "output_ext": output_ext,
         "error": None,
         "created_at": now,
         "finished_at": None,

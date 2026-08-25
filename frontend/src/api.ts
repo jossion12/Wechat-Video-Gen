@@ -9,6 +9,7 @@ import type {
   RenderJobEvent,
   SessionDetail,
   SessionInfo,
+  TimelineDocument,
   VideoDSL,
 } from './types';
 
@@ -110,6 +111,17 @@ export async function submitRender(dsl: VideoDSL, sessionId: string): Promise<st
 /** 查询渲染任务状态。 */
 export function getJob(jobId: string): Promise<JobStatusResponse> {
   return requestJson<JobStatusResponse>(`/api/jobs/${encodeURIComponent(jobId)}`);
+}
+
+/**
+ * 拉取时间码 JSON(见 docs/03-api.md §3.x 时间码导出)。
+ * 后端校验所有权 + done + disk 上有 timeline.json,否则 404/409。
+ * 前端只在 JobStatus.timeline_url 非空时才调这个接口。
+ */
+export function getTimeline(jobId: string): Promise<TimelineDocument> {
+  return requestJson<TimelineDocument>(
+    `/api/jobs/${encodeURIComponent(jobId)}/timeline`,
+  );
 }
 
 /**

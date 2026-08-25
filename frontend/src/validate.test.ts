@@ -7,6 +7,7 @@ function buildScene(messages: ChatScene['messages']): ChatScene {
     title: '测试',
     background: '#ffffff',
     background_image_url: null,
+    background_visible: true,
     duration_ms: null,
     opacity: 1,
     intro_effect: 'none',

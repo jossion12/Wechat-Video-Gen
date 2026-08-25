@@ -67,12 +67,23 @@ function ChatHeader({ scene, theme }: { scene: ChatScene; theme: StyleTheme }) {
 }
 
 function ChatContent({ scene, theme, children }: { scene: ChatScene; theme: StyleTheme; children: ReactNode }) {
-  const style: CSSProperties = {
-    backgroundColor: scene.background,
-    backgroundImage: scene.background_image_url ? `url(${scene.background_image_url})` : undefined,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-  };
+  // background_visible=false 时只渲染聊天元素,背景色 / 背景图整体透明,
+  // 方便用户直观看到「纯 UI 层模式」的效果。模板渲染的可见性由后端负责,
+  // 这里只保证静态预览能即时反映用户的开关状态。
+  const showBg = scene.background_visible;
+  const style: CSSProperties = showBg
+    ? {
+        backgroundColor: scene.background,
+        backgroundImage: scene.background_image_url
+          ? `url(${scene.background_image_url})`
+          : undefined,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }
+    : {
+        backgroundColor: 'transparent',
+        backgroundImage: 'none',
+      };
   return (
     <div className={themeClass('sp-content', theme)} style={style}>
       {children}

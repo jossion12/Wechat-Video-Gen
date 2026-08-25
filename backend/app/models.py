@@ -58,7 +58,7 @@ AI_BADGE_STYLES = ["neon", "minimal", "retro"]
 INTRO_EFFECTS = ["none", "scanline", "typewriter"]
 
 # 视觉风格模板
-STYLE_THEMES = ["cyberpunk", "watercolor", "pixel", "comic", "noir", "ink"]
+STYLE_THEMES = ["cyberpunk", "watercolor", "pixel", "comic", "noir", "ink", "green_screen"]
 STYLE_THEME_LABELS = {
     "cyberpunk": "赛博朋克",
     "watercolor": "手绘",
@@ -66,6 +66,7 @@ STYLE_THEME_LABELS = {
     "comic": "漫画",
     "noir": "黑白胶片",
     "ink": "水墨",
+    "green_screen": "绿幕",
 }
 
 
@@ -164,6 +165,10 @@ class JobStatus(BaseModel):
     error: str | None
     created_at: float
     finished_at: float | None
+    # 时间码 JSON 产物(见 docs/03-api.md §3.x 时间码导出):
+    # 仅 `status == "done"` 且磁盘上 timeline.json 真实存在时有值,形如
+    # `/api/jobs/{id}/timeline`。前端据此展示「查看时间码」按钮。
+    timeline_url: str | None = None
 
 
 # ---------- 多用户 / session 相关(新增) ----------
@@ -236,6 +241,8 @@ class JobSummary(BaseModel):
     error: str | None
     created_at: float
     finished_at: float | None
+    # 时间码 JSON 链接,与 JobStatus.timeline_url 同语义。
+    timeline_url: str | None = None
 
 
 SessionDetail.model_rebuild()

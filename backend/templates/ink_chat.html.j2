@@ -7,7 +7,7 @@
   /* ---- 基础 / 水墨 ---- */
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
   :root {
-    --bg: {{ background }};
+    {% if background_visible %}--bg: {{ background }};{% endif %}
     --paper: #f4ecd8;
     --paper-light: #fcfaf2;
     --ink-deep: #1a1a1a;
@@ -21,7 +21,7 @@
     --other-text: #1a1a1a;
     --reply-bar: #b8332b;
   }
-  html, body { overflow: hidden; background: var(--bg); }
+  html, body { overflow: hidden; {% if background_visible %}background: var(--bg);{% endif %} }
   body {
     width: 1080px; height: 1920px; position: relative; color: var(--ink-deep);
     display: flex; flex-direction: column;
@@ -30,7 +30,7 @@
   }
 
   /* 背景层：用户图 → 宣纸纤维 → 顶部笔触 → 远山墨影 */
-  {% if background_image_url %}
+  {% if background_visible and background_image_url %}
   body::before {
     content: ""; position: absolute; inset: 0;
     background-image: url('{{ background_image_url }}');
@@ -340,6 +340,7 @@
   </svg>
 
   <!-- 背景装饰层 -->
+  {% if background_visible %}
   <div class="bg-layer bg-paper-fiber"></div>
   <svg class="bg-layer bg-brush" viewBox="0 0 1000 30" preserveAspectRatio="none">
     <path d="M0,15 Q250,8 500,15 T1000,15" stroke="#4a4a4a" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.4"/>
@@ -353,6 +354,7 @@
     </defs>
     <path d="M0,576 L0,380 Q140,260 280,360 T560,300 T820,380 L1080,320 L1080,576 Z" fill="url(#mountainGrad)"/>
   </svg>
+  {% endif %}
 
   <!-- 片头声明卡 -->
   <div class="disclaimer-card" id="__disclaimer__">
@@ -378,7 +380,7 @@
   <!-- 顶部标题栏 -->
   <div class="theater-header">
     <div class="title-wrap">
-      <div class="theater-title" id="theater-title"></div>
+      <div class="theater-title" id="theater-title">{% if intro_effect != "typewriter" %}{{ title }}{% endif %}</div>
       <div class="title-seal"><span>印</span></div>
     </div>
   </div>

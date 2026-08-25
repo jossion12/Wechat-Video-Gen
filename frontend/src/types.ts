@@ -2,7 +2,7 @@ export type Mode = 'single' | 'group';
 export type MessageKind = 'text' | 'image' | 'sys' | 'timestamp' | 'video' | 'emoji';
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
 export type VideoKind = 'chat';
-export type VideoTemplate = 'cyberpunk' | 'watercolor' | 'pixel' | 'comic' | 'noir' | 'ink';
+export type VideoTemplate = 'cyberpunk' | 'watercolor' | 'pixel' | 'comic' | 'noir' | 'ink' | 'green_screen';
 export type StyleTheme = VideoTemplate;
 export type IntroEffect = 'none' | 'scanline' | 'typewriter';
 export type Intent =
@@ -11,6 +11,13 @@ export type Intent =
   | 'teaching_simulation'
   | 'meme_sticker';
 export type AIBadgeStyle = 'neon' | 'minimal' | 'retro';
+
+// 透明背景产物的封装格式 —— 与后端 VideoDSL.transparent_format 对齐,
+// 见 backend/app/recorder.py::render_video_transparent。
+export type TransparentFormat = 'webm_vp9_alpha' | 'mov_prores4444';
+
+// 服务端写入 jobs.output_ext 的可能取值,前端用它决定下载按钮文案 / 文件名后缀。
+export type OutputExt = 'mp4' | 'webm' | 'mov';
 
 export const INTENT_LABELS: Record<Intent, string> = {
   short_video_drama: '短视频剧情创作',
@@ -26,12 +33,26 @@ export const STYLE_THEME_LABELS: Record<StyleTheme, string> = {
   comic: '漫画',
   noir: '黑白胶片',
   ink: '水墨',
+  green_screen: '绿幕',
 };
 
 export const INTRO_EFFECT_LABELS: Record<IntroEffect, string> = {
   none: '无特效',
-  scanline: '扫描线展开',
+  scanline: '扫描线开场',
   typewriter: '打字机标题',
+};
+
+// 透明格式选项下拉框用的中文标签。
+export const TRANSPARENT_FORMAT_LABELS: Record<TransparentFormat, string> = {
+  webm_vp9_alpha: 'WebM (VP9 + Alpha)',
+  mov_prores4444: 'MOV (ProRes 4444)',
+};
+
+// 渲染完成后的产物文案 —— 用于下载按钮 / 状态描述。
+export const OUTPUT_EXT_LABELS: Record<OutputExt, string> = {
+  mp4: 'MP4 (H.264)',
+  webm: 'WebM (VP9+Alpha)',
+  mov: 'MOV (ProRes 4444)',
 };
 
 /** 各主题首次启用时的推荐背景色。 */
@@ -42,6 +63,7 @@ export const THEME_DEFAULT_BACKGROUND: Record<StyleTheme, string> = {
   comic: '#ffffff',
   noir: '#f5f0e1',
   ink: '#f4ecd8',
+  green_screen: '#00ff00',
 };
 
 export interface Participant {
@@ -75,6 +97,7 @@ export interface ChatScene {
   title: string; // default '对话剧场'
   background: string; // default '#ffffff'
   background_image_url: string | null; // '/uploads/xxx.png' or null
+  background_visible: boolean; // false = 仅显示聊天元素,隐藏背景色/背景图/装饰层
   duration_ms: number | null; // null = auto
   opacity: number; // 0-1, default 1
   intro_effect: IntroEffect; // default 'none'
@@ -92,6 +115,10 @@ export interface VideoDSL {
   kind: VideoKind;
   template: VideoTemplate; // 'cyberpunk'
   scene: ChatScene;
+  // 透明背景输出开关 —— 详见 docs/09-how-to-make-package.md §4.3。
+  // 默认 false(沿用旧行为,产出 mp4);设为 true 后再选 transparent_format。
+  transparent: boolean;
+  transparent_format: TransparentFormat | null; // null = 跟随 transparent=false
 }
 
 export interface JobStatusResponse {
@@ -102,6 +129,12 @@ export interface JobStatusResponse {
   error: string | null;
   created_at: number;
   finished_at: number | null;
+  // 后端 queue.get_job_status 透传 jobs.output_ext;老 job 可能是 null,
+  // 前端默认按 'mp4' 处理,保证旧 config / 老数据不破坏 UI。
+  output_ext: OutputExt | null;
+  // 时间码 JSON 链接(见 docs/03-api.md §3.x 时间码导出):
+  // 仅 done 且 timeline.json 存在时有值,前端据此显示「查看时间码」按钮。
+  timeline_url: string | null;
 }
 
 /** Event payload pushed through the SSE stream. */
@@ -110,6 +143,49 @@ export interface RenderJobEvent {
   progress?: number;
   output_url?: string | null;
   error?: string | null;
+  // SSE 增量事件里也可能带 output_ext(终态时);其余时刻从前一次的 snapshot 拿。
+  output_ext?: OutputExt | null;
+  // done 事件里也会带 timeline_url;前端无需再额外 GET 一次 job 状态就能展示按钮。
+  timeline_url?: string | null;
+}
+
+// ---------- 时间码 JSON(见 docs/03-api.md §3.x 时间码导出) ----------
+
+/**
+ * 时间码 JSON 里每条事件的类型标签。
+ * - disclaimer: 片头 1s AI 声明卡
+ * - intro: 开头特效(scanline / typewriter)
+ * - msg: 普通消息(text / image / video / emoji)
+ * - sys: 系统消息(幕间字幕)
+ * - timestamp: 时间戳
+ */
+export type TimelineEventType = 'disclaimer' | 'intro' | 'msg' | 'sys' | 'timestamp';
+
+/** 时间码 JSON 单条事件 —— 与后端 `build_timeline_with_durations()` 一一对应。 */
+export interface TimelineEntry {
+  id: string; // dom_id(disclaimer/intro 取固定值,消息取 'mN')
+  at: number; // 出现时刻(毫秒,相对视频起点 0),与 build_timeline 对齐
+  type: TimelineEventType;
+  kind: string; // 渲染字段:disclaimer / intro / text / image / sys / timestamp / video / emoji
+  sender_id: string;
+  sender_name: string;
+  summary: string; // 给表格用的简短摘要
+  text: string | null;
+  image_url: string | null;
+  video_url: string | null;
+  duration: string | null;
+  appeared_at: number; // = at(冗余,方便前端过滤 / 排序)
+  disappeared_at: number; // 消失时刻(毫秒);末条 = total_duration_ms
+  duration_ms: number; // disappeared_at - appeared_at
+}
+
+/** 时间码 JSON 顶层结构,与后端 `recorder._write_timeline_json` 对齐。 */
+export interface TimelineDocument {
+  schema_version: '1.0';
+  kind: 'chat';
+  job_id: string;
+  total_duration_ms: number;
+  entries: TimelineEntry[];
 }
 
 // ---------- 多用户 / session 相关(新增) ----------
@@ -138,6 +214,8 @@ export interface JobSummary {
   error: string | null;
   created_at: number;
   finished_at: number | null;
+  output_ext: OutputExt | null;
+  timeline_url: string | null;
 }
 
 export interface SessionInfo {

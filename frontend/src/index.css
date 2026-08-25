@@ -101,14 +101,29 @@ textarea:focus {
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px 18px;
+  padding: 20px 22px;
   box-shadow: var(--shadow);
 }
 
 .card-title {
-  margin: 0 0 12px;
+  margin: 0 0 16px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--text);
+  position: relative;
+  padding-left: 10px;
+}
+
+.card-title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--neon-blue) 0%, var(--neon-purple) 100%);
 }
 
 .card-header {
@@ -134,8 +149,15 @@ textarea:focus {
 .form-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+/* label 在上、控件在下的纵向布局 —— 适合多选项 / 长说明 */
+.form-row--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
 }
 
 .form-row--top {
@@ -150,30 +172,55 @@ textarea:focus {
   width: 70px;
   flex-shrink: 0;
   color: var(--text-2);
+  font-size: 13px;
+}
+
+/* stack 布局下 label 占满整行,充当分组小标题 */
+.form-row--stack > .form-label {
+  width: auto;
+  font-weight: 600;
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: 0.2px;
+}
+
+.form-row--stack > .hint {
+  margin: -2px 0 0;
 }
 
 .radio-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .radio-option {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
+  gap: 6px;
+  padding: 6px 14px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 999px;
   cursor: pointer;
   user-select: none;
   background: #fff;
+  font-size: 13px;
+  line-height: 1.4;
+  /* 关键:防止中文 label 被压缩到每个字换行成竖排 */
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.radio-option:hover {
+  border-color: var(--neon-blue);
 }
 
 .radio-option--active {
   border-color: var(--neon-blue);
   color: var(--neon-blue-dark);
   background: rgba(0, 170, 255, 0.08);
-  box-shadow: none;
+  box-shadow: 0 1px 3px rgba(0, 170, 255, 0.18);
 }
 
 .radio-option input {
@@ -1004,6 +1051,27 @@ textarea {
   line-height: 1.5;
 }
 
+/* ---------- output options (SummaryStep) ---------- */
+
+.output-options {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.output-options-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.hint--inline {
+  margin: 0;
+  flex: 1;
+  line-height: 1.5;
+}
+
 /* ---------- static preview ---------- */
 
 .static-preview {
@@ -1821,6 +1889,56 @@ textarea {
   border-radius: 4px;
 }
 
+/* ---------- Static preview: green screen ---------- */
+
+.static-preview--green_screen {
+  background: #00ff00;
+  color: #000000;
+}
+
+.sp-header--green_screen {
+  background: #00ff00;
+  border-bottom: none;
+}
+
+.sp-header--green_screen .sp-header-title {
+  color: #000000;
+  font-weight: 700;
+}
+
+.sp-header--green_screen .sp-header-mode {
+  color: #000000;
+  background: #ffffff;
+  border: 1px solid #000000;
+}
+
+.sp-avatar--green_screen {
+  border-radius: 50%;
+  border: 1px solid #000000;
+}
+
+.sp-skeleton-bubble--green_screen {
+  background: #ffffff;
+  border: 1px solid #000000;
+}
+
+.sp-message--system-green_screen span {
+  color: #000000;
+  font-weight: 600;
+}
+
+.sp-bubble--green_screen.sp-bubble--other {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #000000;
+}
+
+.sp-bubble--green_screen.sp-bubble--me {
+  background: #0a0a0a;
+  color: #ffffff;
+  border: 1px solid #000000;
+}
+
 /* ---------- phone frame ---------- */
 
 .phone-frame:has(.static-preview--cyberpunk) {
@@ -1851,6 +1969,11 @@ textarea {
 .phone-frame:has(.static-preview--ink) {
   background: #f4ecd8;
   box-shadow: 0 0 0 6px #e0d6c0, 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+.phone-frame:has(.static-preview--green_screen) {
+  background: #00ff00;
+  box-shadow: 0 0 0 6px #d1d5db, 0 10px 30px rgba(0, 0, 0, 0.12);
 }
 
 /* ---------- reply field in editor ---------- */
@@ -2045,3 +2168,187 @@ textarea {
   color: var(--text);
   word-break: break-word;
 }
+
+/* ---------- 时间码查看页(见 docs/03-api.md §3.x 时间码导出) ---------- */
+
+.timeline-card {
+  margin: 16px auto;
+  max-width: 1080px;
+  width: calc(100% - 32px);
+}
+
+.timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.timeline-head-left,
+.timeline-head-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.timeline-head-right .btn + .btn {
+  margin-left: 0;
+}
+
+.timeline-job-id {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.timeline-loading,
+.timeline-empty {
+  color: var(--text-2);
+  margin: 16px 0;
+}
+
+.timeline-summary {
+  display: flex;
+  gap: 24px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  background: rgba(0, 170, 255, 0.05);
+  border-radius: var(--radius);
+}
+
+.timeline-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timeline-stat-label {
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.timeline-stat-value {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.timeline-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.timeline-filter-label {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.timeline-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.timeline-filter-btn--active {
+  background: var(--neon-blue);
+  border-color: var(--neon-blue);
+  color: #fff;
+}
+
+/* 时间轴预览:横向条 + 每条事件的彩色区间 */
+.timeline-track {
+  position: relative;
+  height: 22px;
+  background: rgba(0, 120, 200, 0.06);
+  border-radius: 6px;
+  margin: 8px 0 16px;
+  overflow: hidden;
+}
+
+.timeline-track-bar {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 3px;
+  min-width: 2px;
+  opacity: 0.85;
+}
+
+.timeline-track-bar--disclaimer {
+  background: #6b7280;
+}
+
+.timeline-track-bar--intro {
+  background: var(--neon-purple);
+}
+
+.timeline-track-bar--text {
+  background: var(--neon-blue);
+}
+
+.timeline-track-bar--image {
+  background: #16a34a;
+}
+
+.timeline-track-bar--video {
+  background: #ea580c;
+}
+
+.timeline-track-bar--emoji {
+  background: #f59e0b;
+}
+
+.timeline-track-bar--sys {
+  background: var(--neon-pink);
+}
+
+.timeline-track-bar--timestamp {
+  background: #64748b;
+}
+
+.timeline-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.timeline-table th,
+.timeline-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.timeline-table th {
+  color: var(--text-2);
+  font-weight: 500;
+  background: rgba(0, 120, 200, 0.04);
+}
+
+.timeline-summary-cell {
+  max-width: 360px;
+  word-break: break-word;
+}
+
+.timeline-kind-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #fff;
+}
+
+.timeline-kind-badge--disclaimer { background: #6b7280; }
+.timeline-kind-badge--intro { background: var(--neon-purple); }
+.timeline-kind-badge--text { background: var(--neon-blue); }
+.timeline-kind-badge--image { background: #16a34a; }
+.timeline-kind-badge--video { background: #ea580c; }
+.timeline-kind-badge--emoji { background: #f59e0b; }
+.timeline-kind-badge--sys { background: var(--neon-pink); }
+.timeline-kind-badge--timestamp { background: #64748b; }

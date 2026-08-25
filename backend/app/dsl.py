@@ -55,10 +55,11 @@ class ChatScene(BaseModel):
     title: str = "对话剧场"
     background: str = "#ffffff"
     background_image_url: str | None = None  # 整页背景图;有值时叠加于背景色之上
+    background_visible: bool = True  # False 时仅渲染聊天元素,隐藏背景色 / 背景图 / 装饰层
     duration_ms: int | None = None  # None = 自动算
     opacity: float = 1.0  # 0-1,整个内容透明度,方便叠加到其他视频
     intro_effect: Literal["none", "scanline", "typewriter"] = "none"
-    style_theme: Literal["cyberpunk", "watercolor", "pixel", "comic", "noir", "ink"] = "comic"
+    style_theme: Literal["cyberpunk", "watercolor", "pixel", "comic", "noir", "ink", "green_screen"] = "comic"
     intent: str = ""
     intent_acknowledged: bool = False
     participants: list[Participant] = Field(min_length=MIN_PARTICIPANTS)
@@ -174,8 +175,13 @@ class VideoDSL(BaseModel):
 
     schema_version: Literal["1.0"] = SCHEMA_VERSION
     kind: Literal["chat"] = "chat"
-    template: Literal["cyberpunk", "watercolor", "pixel", "comic", "noir", "ink"] = "cyberpunk"
+    template: Literal["cyberpunk", "watercolor", "pixel", "comic", "noir", "ink", "green_screen"] = "cyberpunk"
     scene: ChatScene
+    # 输出格式扩展:transparent=False(默认)走 h264 mp4;
+    # transparent=True 时按 transparent_format 选 WebM(VP9+alpha)或 MOV(ProRes 4444)。
+    # 两个字段都有默认值,旧 config 不用改也能继续校验。
+    transparent: bool = False
+    transparent_format: Literal["webm_vp9_alpha", "mov_prores4444"] | None = None
 
     @model_validator(mode="after")
     def sync_template_and_style_theme(self) -> "VideoDSL":

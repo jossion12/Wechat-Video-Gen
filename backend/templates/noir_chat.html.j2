@@ -7,7 +7,7 @@
   /* ---- 基础 / 黑白胶片 ---- */
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
   :root {
-    --bg: {{ background }};
+    {% if background_visible %}--bg: {{ background }};{% endif %}
     --paper: #f5f0e1;
     --ink: #0a0a0a;
     --ink-soft: #2a2a2a;
@@ -19,7 +19,7 @@
     --other-text: #0a0a0a;
     --reply-bar: #0a0a0a;
   }
-  html, body { overflow: hidden; background: var(--bg); }
+  html, body { overflow: hidden; {% if background_visible %}background: var(--bg);{% endif %} }
   body {
     width: 1080px; height: 1920px; position: relative; color: var(--ink);
     display: flex; flex-direction: column;
@@ -28,7 +28,7 @@
   }
 
   /* 背景层：用户图 → 颗粒 → 暗角 → 齿孔（均位于 z-index 0 以下或 0） */
-  {% if background_image_url %}
+  {% if background_visible and background_image_url %}
   body::before {
     content: ""; position: absolute; inset: 0;
     background-image: url('{{ background_image_url }}');
@@ -327,11 +327,13 @@
     </filter>
   </svg>
 
+  {% if background_visible %}
   <!-- 背景装饰层 -->
   <div class="bg-layer bg-grain"></div>
   <div class="bg-layer bg-vignette"></div>
   <div class="bg-layer bg-perf bg-perf-left"></div>
   <div class="bg-layer bg-perf bg-perf-right"></div>
+  {% endif %}
 
   <!-- 片头声明卡 -->
   <div class="disclaimer-card" id="__disclaimer__">
@@ -356,7 +358,7 @@
   <!-- 顶部标题栏 -->
   <div class="theater-header">
     <div class="title-wrap">
-      <div class="theater-title" id="theater-title"></div>
+      <div class="theater-title" id="theater-title">{% if intro_effect != "typewriter" %}{{ title }}{% endif %}</div>
       <div class="title-line title-line--full"></div>
       <div class="title-line title-line--short"></div>
     </div>

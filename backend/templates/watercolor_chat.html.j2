@@ -7,7 +7,7 @@
   /* ---- 手绘 / 莫兰迪色系 ---- */
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
   :root {
-    --bg: {{ background }};
+    {% if background_visible %}--bg: {{ background }};{% endif %}
     --paper: #f7f4ed;
     --morandi-blue: #8fb9c1;
     --morandi-pink: #d4a5a5;
@@ -18,14 +18,14 @@
     --self-gradient: linear-gradient(135deg, rgba(143,185,193,0.35) 0%, rgba(184,169,201,0.25) 100%);
     --other-gradient: linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(247,244,237,0.9) 100%);
   }
-  html, body { overflow: hidden; background: var(--bg); }
+  html, body { overflow: hidden; {% if background_visible %}background: var(--bg);{% endif %} }
   body {
     width: 1080px; height: 1920px; position: relative; color: var(--text);
     display: flex; flex-direction: column;
     font-family: "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "KaiTi", "STKaiti", cursive, sans-serif;
     opacity: {{ opacity }};
   }
-  {% if background_image_url %}
+  {% if background_visible and background_image_url %}
   body::before {
     content: ""; position: absolute; inset: 0;
     background-image: url('{{ background_image_url }}');
@@ -34,12 +34,14 @@
   }
   {% endif %}
 
+  {% if background_visible %}
   /* 纸张纹理 */
   body::after {
     content: ""; position: absolute; inset: 0;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
     pointer-events: none; z-index: 9998;
   }
+  {% endif %}
 
   /* ---- 声明卡 ---- */
   .disclaimer-card {
@@ -299,7 +301,7 @@
 
   <!-- 顶部标题栏 -->
   <div class="theater-header">
-    <div class="theater-title" id="theater-title"></div>
+    <div class="theater-title" id="theater-title">{% if intro_effect != "typewriter" %}{{ title }}{% endif %}</div>
   </div>
 
   <!-- 聊天区 -->

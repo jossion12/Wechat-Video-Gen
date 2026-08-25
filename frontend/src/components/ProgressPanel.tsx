@@ -1,8 +1,11 @@
 import { useRenderJob } from '../hooks/useRenderJob';
-import type { JobStatus } from '../types';
+import type { JobStatus, OutputExt } from '../types';
+import { OUTPUT_EXT_LABELS } from '../types';
 
 interface ProgressPanelProps {
   jobId: string | null;
+  /** 触发时间码视图(由 App 注入) — 仅 status==='done' 且 timeline_url 非空时按钮可见 */
+  onViewTimeline?: () => void;
 }
 
 const STATUS_TEXT: Record<JobStatus, string> = {
@@ -13,7 +16,7 @@ const STATUS_TEXT: Record<JobStatus, string> = {
 };
 
 /** 渲染进度面板：状态、进度条、下载与错误提示。 */
-export function ProgressPanel({ jobId }: ProgressPanelProps) {
+export function ProgressPanel({ jobId, onViewTimeline }: ProgressPanelProps) {
   const { job, error, loading } = useRenderJob(jobId);
 
   if (!jobId) {
@@ -46,6 +49,10 @@ export function ProgressPanel({ jobId }: ProgressPanelProps) {
   if (!job) return null;
 
   const pct = Math.max(0, Math.min(100, job.progress));
+  // 老 job 可能没有 output_ext 字段,默认按 mp4 处理以保证 UI 不崩。
+  const outputExt: OutputExt = job.output_ext ?? 'mp4';
+  const downloadName = `video.${outputExt}`;
+  const downloadLabel = `下载 ${OUTPUT_EXT_LABELS[outputExt]}`;
 
   return (
     <section className="card progress-card">
@@ -61,9 +68,22 @@ export function ProgressPanel({ jobId }: ProgressPanelProps) {
         <div className="error-text">{job.error ?? '渲染失败，未知错误'}</div>
       )}
       {job.status === 'done' && job.output_url && (
-        <a className="btn btn-primary download-btn" href={job.output_url} download>
-          下载 MP4
+        <a
+          className="btn btn-primary download-btn"
+          href={job.output_url}
+          download={downloadName}
+        >
+          {downloadLabel}
         </a>
+      )}
+      {job.status === 'done' && job.timeline_url && onViewTimeline && (
+        <button
+          type="button"
+          className="btn btn-ghost download-btn"
+          onClick={onViewTimeline}
+        >
+          查看时间码
+        </button>
       )}
     </section>
   );

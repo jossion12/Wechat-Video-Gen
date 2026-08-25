@@ -248,6 +248,151 @@ def build_timeline(config: ChatScene, intro_duration_ms: int | None = None) -> l
     return timeline
 
 
+def build_timeline_with_durations(
+    config: ChatScene,
+    intro_duration_ms: int | None = None,
+    total_duration_ms: int | None = None,
+) -> list[dict]:
+    """在 `build_timeline()` 基础上给每条事件算 `appeared_at` / `disappeared_at`(毫秒,相对视频起点 0)。
+
+    消失语义:
+      - 下一条事件出现时,上一条立即消失(对应模板里"新消息把上一条顶出聊天区"的视觉);
+      - 最后一条事件(`disclaimer` / `intro` / 末条消息)在场景总时长 `total_duration_ms`
+        处消失,留出结尾缓冲。
+
+    不复用 `build_timeline()` 返回值是为了:
+      (a) 每条事件额外携带 `kind` / `sender_id` / `sender_name` / `text` / `image_url`
+          / `video_url` / `duration` 等渲染模板字段(取自 `build_messages`),前端做表格展示
+          时不需要再翻 DSL;
+      (b) 消失时刻需要 `total_duration_ms`(场景结束),而 `build_timeline` 只返回
+          "at",没有"末尾"信息,合并实现更直观。
+
+    与 `build_timeline()` 的 `at` 字段完全一致 — 同一个事件出现时刻相同,只是新增
+    `appeared_at` / `disappeared_at` / `duration_ms` / `sender_id` / `sender_name` /
+    `summary` 等展示用字段。**不修改** `build_timeline` 的现有签名和返回值,旧
+    调用方零影响。
+
+    参数:
+      - `config`: 当前 ChatScene
+      - `intro_duration_ms`: 可显式传入;None 时按 `config.intro_effect` 自动算
+      - `total_duration_ms`: 场景总时长;None 时按 `resolve_duration_ms` 算(与
+        `render_dsl` 同一公式,保证 timeline 与产物视频完全对齐)
+    """
+    if intro_duration_ms is None:
+        intro_duration_ms = resolve_intro_duration_ms(config)
+    if total_duration_ms is None:
+        total_duration_ms = resolve_duration_ms(config, intro_duration_ms)
+
+    intro_duration = intro_duration_ms if config.intro_effect != "none" else 0
+
+    # 先按 build_messages 的顺序拿到每条消息的展示字段,方便 timeline 直接引用
+    rendered_msgs = build_messages(config)
+
+    events: list[dict] = []
+
+    # __disclaimer__:at=0 显示,1000ms 后消失(让位给 intro / 首条消息)
+    events.append(
+        {
+            "id": "__disclaimer__",
+            "at": 0,
+            "type": "disclaimer",
+            "kind": "disclaimer",
+            "sender_id": "__system__",
+            "sender_name": "",
+            "summary": DISCLAIMER_CARD_TEXT,
+            "text": DISCLAIMER_CARD_TEXT,
+            "image_url": None,
+            "video_url": None,
+            "duration": None,
+        }
+    )
+
+    t = 1000 + intro_duration  # 声明卡 1s 后开始第一条非声明事件
+    first_msg = config.messages[0] if config.messages else None
+
+    if intro_duration:
+        events.append(
+            {
+                "id": "__intro__",
+                "at": 1000,
+                "type": "intro",
+                "kind": "intro",
+                "sender_id": "__system__",
+                "sender_name": "",
+                "summary": config.intro_effect,
+                "text": config.intro_effect,
+                "image_url": None,
+                "video_url": None,
+                "duration": None,
+            }
+        )
+
+    start_idx = 0
+    if first_msg and first_msg.kind == "timestamp" and first_msg.text:
+        events.append(_msg_event(f"m1", t, rendered_msgs[0]))
+        start_idx = 1
+        t += 700
+
+    for i, m in enumerate(config.messages[start_idx:], start=start_idx + 1):
+        events.append(_msg_event(f"m{i}", t, rendered_msgs[i - 1]))
+        t += m.delay_ms
+
+    # 第二轮:按顺序算 disappeared_at = 下一条 at;最后一条 = total_duration_ms
+    for idx, ev in enumerate(events):
+        appeared = ev["at"]
+        if idx + 1 < len(events):
+            disappeared = events[idx + 1]["at"]
+        else:
+            disappeared = total_duration_ms
+        ev["appeared_at"] = appeared
+        ev["disappeared_at"] = disappeared
+        ev["duration_ms"] = max(0, disappeared - appeared)
+    return events
+
+
+def _msg_event(dom_id: str, at_ms: int, rendered_msg: dict) -> dict:
+    """把 build_messages 的单条 dict 转成 timeline 事件(出现时刻 + 展示字段)。"""
+    kind = rendered_msg.get("kind", "text")
+    if kind == "sys":
+        type_label = "sys"
+    elif kind == "timestamp":
+        type_label = "timestamp"
+    else:
+        type_label = "msg"
+    return {
+        "id": dom_id,
+        "at": at_ms,
+        "type": type_label,
+        "kind": kind,
+        "sender_id": rendered_msg.get("sender_id", ""),
+        "sender_name": rendered_msg.get("sender_name", ""),
+        "summary": _summarize_message(rendered_msg),
+        "text": rendered_msg.get("text"),
+        "image_url": rendered_msg.get("image_url"),
+        "video_url": rendered_msg.get("video_url"),
+        "duration": rendered_msg.get("duration"),
+    }
+
+
+def _summarize_message(rendered_msg: dict) -> str:
+    """给前端表格用的简短摘要:文字取首行,图片 / 视频 / emoji 给类型提示。"""
+    kind = rendered_msg.get("kind", "")
+    text = rendered_msg.get("text")
+    if kind == "image":
+        return f"[图片] {text or ''}".strip()
+    if kind == "video":
+        return f"[视频] {text or ''}".strip()
+    if kind == "emoji":
+        return text or "[emoji]"
+    if kind == "sys":
+        return text or ""
+    if kind == "timestamp":
+        return text or ""
+    if text:
+        return text.split("\n", 1)[0]
+    return ""
+
+
 def resolve_duration_ms(config: ChatScene, intro_duration_ms: int | None = None) -> int:
     """总时长:用户显式传 duration_ms 则用用户值,否则自动算(含 1s 声明卡 + intro 时长)。"""
     if config.duration_ms is not None:
@@ -272,6 +417,7 @@ def render_chat(scene: ChatScene, template: str) -> str:
         "title": scene.title,
         "background": scene.background,
         "background_image_url": resolve_upload_url(scene.background_image_url),
+        "background_visible": scene.background_visible,
         "opacity": scene.opacity,
         "style_theme": scene.style_theme,
         "intent_label": scene.intent,
@@ -294,6 +440,6 @@ def render_dsl(dsl: VideoDSL) -> str:
     """按 kind + template 分发渲染。"""
     if dsl.kind != "chat":
         raise ValueError(f"unsupported dsl kind: {dsl.kind}")
-    if dsl.template not in ("cyberpunk", "watercolor", "pixel", "comic", "noir", "ink"):
+    if dsl.template not in ("cyberpunk", "watercolor", "pixel", "comic", "noir", "ink", "green_screen"):
         raise ValueError(f"unsupported chat template: {dsl.template}")
     return render_chat(dsl.scene, dsl.template)

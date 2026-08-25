@@ -28,6 +28,7 @@
 | GET | `/api/jobs/{id}/events` | ✓ | SSE 进度(所有权校验) |
 | GET | `/api/files/{file_id}` | ✓ | 取素材文件(所有权校验) |
 | GET | `/api/jobs/{id}/output` | ✓ | 下载产物 MP4(所有权校验) |
+| GET | `/api/jobs/{id}/timeline` | ✓ | 下载时间码 JSON(所有权校验,见 §3.x 时间码导出) |
 
 ## 3.2 鉴权
 
@@ -138,11 +139,15 @@
   "output_url": null,
   "error": null,
   "created_at": 1734567890.12,
-  "finished_at": null
+  "finished_at": null,
+  "timeline_url": null
 }
 ```
 
 `output_url` 仅 `status == "done"` 时有值,形如 `/api/jobs/{id}/output`。
+`timeline_url` 仅 `status == "done"` **且**磁盘上 timeline.json 真实存在时有值,
+形如 `/api/jobs/{id}/timeline`;老 job / 编码失败等情况为 `null`,前端据此决定
+是否显示「查看时间码」按钮(见 §3.x 时间码导出)。
 **404** 表示任务不存在或不属于当前用户(不区分,避免泄露)。
 
 ## 3.11 `GET /api/jobs/{id}/events` (SSE)
@@ -157,6 +162,46 @@
 ## 3.13 `GET /api/jobs/{job_id}/output`
 
 返回产物 MP4(`video/mp4`)。仅 `status == "done"` 时可下载,否则 **409**。
+
+## 3.x 时间码导出 `GET /api/jobs/{job_id}/timeline`
+
+返回时间码 JSON(详见 [`docs/02-data-model.md §2.8`](./02-data-model.md) schema)。
+
+每次渲染成功（不透明 mp4 / 透明 webm / 透明 mov 任一产物线）都会在
+`storage/users/{user_id}/sessions/{session_id}/outputs/{job_id}.timeline.json`
+落一份。文件与视频产物同生命周期：渲染失败时与 `mp4/webm/mov` 一起清理。
+
+**Response 200**: `Content-Type: application/json`，响应体即时间码 JSON（见 §2.8）。
+响应头 `Content-Disposition: attachment; filename="<job_id>.timeline.json"`，浏览器可直接保存。
+
+**错误**：
+
+| HTTP | 触发条件 |
+|---|---|
+| 401 | 未携带 `X-User-Id` / `user_id` cookie |
+| 404 | job 不存在 / 不属于当前用户 / disk 上 timeline.json 缺失（老 job、编码失败等） |
+| 409 | job 未完成（`status` 不是 `done`） |
+
+**所有权校验模板与 `GET /api/jobs/{id}/output` 一致**（job 不存在 / 跨用户统一返回 404，不区分）。
+
+**前端调用**：
+
+```typescript
+import { getJob, getTimeline } from './api';
+
+// 1. 轮询/SSE 拿到 JobStatusResponse,timeline_url 非空时再拉 JSON
+const job = await getJob(jobId);
+if (job.timeline_url) {
+  const timeline = await getTimeline(jobId);
+  console.log(timeline.entries);
+}
+
+// 2. 直接打开下载链接(浏览器触发下载,无需 JS)
+const a = document.createElement('a');
+a.href = job.timeline_url;          // "/api/jobs/<id>/timeline"
+a.download = `${jobId}.timeline.json`;
+a.click();
+```
 
 ## 3.14 `GET /api/me`
 

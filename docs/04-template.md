@@ -235,3 +235,56 @@ if settings.DEBUG_PREVIEW:
 ```
 
 浏览器直接打开本地文件看效果；或用 `python -m http.server` 起个静态服务。
+
+## 4.14 时间码导出（timeline.json）
+
+每次渲染成功都会额外落一份 `timeline.json`，记录 disclaimer / intro / 每条消息
+的精确出现 / 消失时刻（毫秒，相对视频起点 0）。前端通过
+`GET /api/jobs/{job_id}/timeline` 拉取并展示（见
+[`docs/03-api.md §3.x`](./03-api.md) 与 [`docs/02-data-model.md §2.8`](./02-data-model.md)）。
+
+### 数据来源
+
+`backend/app/renderer.py` 同时维护两个并列函数：
+
+- `build_timeline()`（老）：返回 `[{id, at, type, ...}]`，被模板末尾的 JS 用来
+  `TIMELINE.forEach(t => setTimeout(..., t.at))` 逐条显示消息。
+  **签名与返回值不变**，所有现有调用方继续工作。
+- `build_timeline_with_durations()`（新）：返回 `[{id, at, appeared_at,
+  disappeared_at, duration_ms, ...}]`，每条事件额外带 sender_id / sender_name
+  / summary / text / image_url / video_url / duration 等渲染字段，供
+  `recorder._write_timeline_json()` 落盘与前端表格展示。
+
+两个函数都基于同一个 ChatScene + 同一个 `resolve_intro_duration_ms()` /
+`resolve_duration_ms()` 公式，**`appeared_at` 与模板 JS 用的 `at` 完全一致**——
+模板动画与时间码逐帧对齐。
+
+### 消失语义
+
+- 一条消息在 **下一条事件出现**时消失（对应模板里"新消息把上一条顶出聊天区"的视觉）
+- 最后一条事件（disclaimer / intro / 末条消息）在场景总时长 `total_duration_ms` 处消失
+- 首条为 `timestamp` 消息时，timestamp 与下一条消息之间固定 700ms 间隔（与
+  `build_timeline()` 的 `t += 700` 保持一致）
+
+### 适用范围
+
+- **透明 / 不透明两条产物线都支持**：`_write_timeline_json()` 在 `render_video()`
+  与 `render_video_transparent()` 两条路径里都被调用，时间码数据完全在 DSL 层
+  算出，不依赖 Playwright 录制的像素 — WebM-VP9-alpha / MOV-ProRes 4444 与
+  MP4 走同一份 timeline.json。
+- **7 种风格通用**：cyberpunk / watercolor / pixel / comic / noir / ink / green_screen
+  共用同一套时间戳算法，差异只在于视觉层。
+- **失败清理**：渲染失败时 `timeline.json` 与 `mp4/webm/mov` 一起被
+  `try/except` 块 unlink，不留半成品。
+- **bg_visible: false / 透明产物线兼容**：时间码来源只依赖 DSL + 渲染时长，
+  不读取像素，与背景可见性 / 透明设置无关。
+
+### 与前端对接
+
+- `JobStatus.timeline_url`（新增字段，可空）— 仅 done 且 timeline.json 存在时有值，
+  前端据此显示「查看时间码」按钮
+- `GET /api/jobs/{job_id}/timeline` 返回 `application/json`，所有权校验与
+  `serve_output` 一致（跨用户 404，不泄露存在性）
+- 前端 `TimelinePanel` 组件列出每条消息、过滤、可选时间轴预览，点击按钮在 App 顶层
+  切换视图（路由或内部 state 切换，本项目用 App 内部 state，详见
+  `frontend/src/App.tsx`）

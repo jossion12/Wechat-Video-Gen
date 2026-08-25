@@ -144,6 +144,27 @@ def test_preview_html_accepts_reply_to(client, user_storage):
     assert "回复你" in body["html"]
 
 
+def test_preview_html_hides_green_screen_mid_typewriter_text(client, user_storage):
+    """✅ 预览时隐藏 green_screen 模板 typewriter 模式下中间的打字机字
+    (#intro-typewriter-text 是给抠像输出保留的,实际录制必须保留;
+    预览不需要这行,与顶部 #theater-title 的打字机效果重复)。"""
+    r = client.post("/api/sessions", headers=_h("alice"))
+    sid = r.json()["id"]
+    dsl = _make_dsl()
+    dsl.template = "green_screen"
+    dsl.scene.intro_effect = "typewriter"
+    r = client.post(
+        "/api/preview-html",
+        headers=_h("alice"),
+        json={"dsl": dsl.model_dump(mode="json"), "session_id": sid},
+    )
+    assert r.status_code == 200
+    html = r.json()["html"]
+    # 元素必须仍在(便于与录制一致),但被预览专用 CSS 隐藏
+    assert 'id="intro-typewriter-text"' in html
+    assert "#intro-typewriter-text { display: none !important; }" in html
+
+
 # ---------- DELETE /api/sessions 原子 (P0-2) ----------
 
 def test_delete_session_clears_db_and_disk(client, user_storage):
@@ -381,3 +402,196 @@ def test_x_user_id_still_works_for_curl(client):
     r = client.get("/api/me", headers=_h("alice"))
     assert r.status_code == 200
     assert r.json()["id"] == "alice"
+
+
+# ---------- GET /api/jobs/{job_id}/timeline 时间码导出 (新增) ----------
+
+
+def _write_timeline_file(user_storage, user_id: str, session_id: str, job_id: str, payload: dict | None = None) -> Path:
+    """辅助:在 user_storage 里直接写一份合法的 timeline.json,模拟渲染产物。"""
+    from app.storage import timeline_path
+    import json
+    target = timeline_path(user_id, session_id, job_id)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if payload is None:
+        payload = {
+            "schema_version": "1.0",
+            "kind": "chat",
+            "job_id": job_id,
+            "total_duration_ms": 5500,
+            "entries": [
+                {
+                    "id": "__disclaimer__",
+                    "at": 0,
+                    "type": "disclaimer",
+                    "kind": "disclaimer",
+                    "sender_id": "__system__",
+                    "sender_name": "",
+                    "summary": "本对话由 AI 生成,仅供创意表达",
+                    "text": "本对话由 AI 生成,仅供创意表达",
+                    "image_url": None,
+                    "video_url": None,
+                    "duration": None,
+                    "appeared_at": 0,
+                    "disappeared_at": 1000,
+                    "duration_ms": 1000,
+                },
+                {
+                    "id": "m1",
+                    "at": 1000,
+                    "type": "msg",
+                    "kind": "text",
+                    "sender_id": "me",
+                    "sender_name": "我",
+                    "summary": "在吗",
+                    "text": "在吗",
+                    "image_url": None,
+                    "video_url": None,
+                    "duration": None,
+                    "appeared_at": 1000,
+                    "disappeared_at": 2500,
+                    "duration_ms": 1500,
+                },
+            ],
+        }
+    target.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return target
+
+
+def _insert_done_job(user_storage, user_id: str, session_id: str, job_id: str) -> None:
+    """辅助:直接插一条 status=done 的 job 行(绕过 worker),用于测试 timeline API。"""
+    asyncio.run(db.insert_job_async(
+        job_id=job_id,
+        session_id=session_id,
+        user_id=user_id,
+        config=_make_dsl().model_dump(mode="json"),
+        output_ext="mp4",
+    ))
+    asyncio.run(db.finish_job_async(job_id, "done", None))
+
+
+def test_timeline_endpoint_returns_file_for_owner(client, user_storage):
+    """✅ done + timeline.json 存在 + 当前用户所有 → 200 + application/json + 文件名。"""
+    r = client.post("/api/sessions", headers=_h("alice"))
+    sid = r.json()["id"]
+    _insert_done_job(user_storage, "alice", sid, "job-t1")
+    _write_timeline_file(user_storage, "alice", sid, "job-t1")
+
+    r = client.get("/api/jobs/job-t1/timeline", headers=_h("alice"))
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/json")
+    # Content-Disposition 形如 attachment; filename="<job_id>.timeline.json"
+    cd = r.headers.get("content-disposition", "")
+    assert "job-t1.timeline.json" in cd
+
+    body = r.json()
+    assert body["schema_version"] == "1.0"
+    assert body["kind"] == "chat"
+    assert body["job_id"] == "job-t1"
+    assert body["total_duration_ms"] == 5500
+    ids = [e["id"] for e in body["entries"]]
+    assert ids == ["__disclaimer__", "m1"]
+    # 每条事件都有 appeared_at / disappeared_at / duration_ms 三个字段
+    for e in body["entries"]:
+        for k in ("appeared_at", "disappeared_at", "duration_ms"):
+            assert k in e, f"timeline entry missing {k}: {e}"
+            assert isinstance(e[k], int)
+
+
+def test_timeline_endpoint_requires_auth(client, user_storage):
+    """无 X-User-Id → 401(与 serve_output 模板一致)。"""
+    r = client.post("/api/sessions", headers=_h("alice"))
+    sid = r.json()["id"]
+    _insert_done_job(user_storage, "alice", sid, "job-t2")
+    _write_timeline_file(user_storage, "alice", sid, "job-t2")
+
+    # 清掉前面 POST /api/sessions 设的 user_id cookie,模拟「完全没身份」请求。
+    client.cookies.clear()
+    r = client.get("/api/jobs/job-t2/timeline")
+    assert r.status_code == 401
+
+
+def test_timeline_endpoint_cross_user_404(client, user_storage):
+    """bob 访问 alice 的 timeline → 404(不泄露存在性)。"""
+    r = client.post("/api/sessions", headers=_h("alice"))
+    sid = r.json()["id"]
+    _insert_done_job(user_storage, "alice", sid, "job-t3")
+    _write_timeline_file(user_storage, "alice", sid, "job-t3")
+
+    client.cookies.clear()
+    client.cookies.set("user_id", "bob")
+    r = client.get("/api/jobs/job-t3/timeline", headers=_h("bob"))
+    assert r.status_code == 404
+
+
+def test_timeline_endpoint_nonexistent_job_404(client):
+    """job 不存在 → 404。"""
+    r = client.get("/api/jobs/nope/timeline", headers=_h("alice"))
+    assert r.status_code == 404
+
+
+def test_timeline_endpoint_409_when_not_done(client, user_storage):
+    """任务未完成(queued/running) → 409,与 serve_output 模板一致。"""
+    r = client.post("/api/sessions", headers=_h("alice"))
+    sid = r.json()["id"]
+    # insert_job 默认 status='queued'
+    asyncio.run(db.insert_job_async(
+        job_id="job-running",
+        session_id=sid,
+        user_id="alice",
+        config=_make_dsl().model_dump(mode="json"),
+        output_ext="mp4",
+    ))
+    asyncio.run(db.update_job_status_async("job-running", "running", 42))
+
+    r = client.get("/api/jobs/job-running/timeline", headers=_h("alice"))
+    assert r.status_code == 409
+
+
+def test_timeline_endpoint_404_when_file_missing(client, user_storage):
+    """任务 done 但 disk 上 timeline.json 不存在(老 job / 透明产物编码失败)→ 404。
+    同时验证 JobStatus.timeline_url == None —— 前端按钮不会显示。"""
+    r = client.post("/api/sessions", headers=_h("alice"))
+    sid = r.json()["id"]
+    _insert_done_job(user_storage, "alice", sid, "job-no-file")
+
+    # 直接 GET → 404
+    r = client.get("/api/jobs/job-no-file/timeline", headers=_h("alice"))
+    assert r.status_code == 404
+
+    # JobStatus.timeline_url 也应是 None
+    r = client.get("/api/jobs/job-no-file", headers=_h("alice"))
+    assert r.status_code == 200
+    assert r.json().get("timeline_url") is None
+
+
+def test_timeline_url_in_session_detail_when_done(client, user_storage):
+    """✅ done + timeline.json 存在时,session 详情里的 jobs[].timeline_url 是完整 URL。"""
+    r = client.post("/api/sessions", headers=_h("alice"))
+    sid = r.json()["id"]
+    _insert_done_job(user_storage, "alice", sid, "job-detail")
+    _write_timeline_file(user_storage, "alice", sid, "job-detail")
+
+    r = client.get(f"/api/sessions/{sid}", headers=_h("alice"))
+    assert r.status_code == 200
+    jobs = r.json()["jobs"]
+    assert len(jobs) == 1
+    assert jobs[0]["timeline_url"] == "/api/jobs/job-detail/timeline"
+
+
+def test_timeline_url_none_in_job_status_when_running(client, user_storage):
+    """running 时 JobStatus.timeline_url 是 None(产物还没落地)。"""
+    r = client.post("/api/sessions", headers=_h("alice"))
+    sid = r.json()["id"]
+    asyncio.run(db.insert_job_async(
+        job_id="job-run2",
+        session_id=sid,
+        user_id="alice",
+        config=_make_dsl().model_dump(mode="json"),
+        output_ext="mp4",
+    ))
+    asyncio.run(db.update_job_status_async("job-run2", "running", 30))
+
+    r = client.get("/api/jobs/job-run2", headers=_h("alice"))
+    assert r.status_code == 200
+    assert r.json()["timeline_url"] is None

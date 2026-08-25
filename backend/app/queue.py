@@ -18,11 +18,28 @@ from contextlib import asynccontextmanager
 
 from app import db, recorder
 from app.dsl import VideoDSL
+from app.storage import timeline_path
 
 logger = logging.getLogger("queue")
 
 WORKER_COUNT = int(os.getenv("WORKER_COUNT", "2"))
 MAX_QUEUE_SIZE = int(os.getenv("MAX_QUEUE_SIZE", "100"))
+
+# 透明背景 DSL → 产物扩展名映射。job 入库时写入 jobs.output_ext,
+# serve_output 按这个 ext 拿文件 + 拼 MIME;worker 也靠它决定是否走透明路径。
+# transparent_format 缺省 → webm_vp9_alpha(体量更小、跨平台兼容性更好)。
+_TRANSPARENT_FORMAT_TO_EXT = {
+    "webm_vp9_alpha": "webm",
+    "mov_prores4444": "mov",
+}
+
+
+def _resolve_output_ext(dsl: VideoDSL) -> str:
+    """从 DSL 推出产物扩展名,默认 mp4。"""
+    if dsl.transparent:
+        fmt = dsl.transparent_format or "webm_vp9_alpha"
+        return _TRANSPARENT_FORMAT_TO_EXT.get(fmt, "mp4")
+    return "mp4"
 
 
 class QueueFullError(Exception):
@@ -41,15 +58,20 @@ async def enqueue(dsl: VideoDSL, session_id: str, user_id: str) -> str:
         raise QueueFullError("queue is full")
     job_id = uuid.uuid4().hex[:26]
     config = dsl.model_dump(mode="json")
+    output_ext = _resolve_output_ext(dsl)
     await db.insert_job_async(
         job_id=job_id,
         session_id=session_id,
         user_id=user_id,
         config=config,
+        output_ext=output_ext,
     )
     await db.touch_session_async(session_id)
     _queue.put_nowait(job_id)
-    logger.info("Job %s queued (user=%s session=%s)", job_id, user_id, session_id)
+    logger.info(
+        "Job %s queued (user=%s session=%s output_ext=%s)",
+        job_id, user_id, session_id, output_ext,
+    )
     return job_id
 
 
@@ -63,8 +85,15 @@ async def get_job_status(job_id: str, user_id: str | None = None) -> dict | None
         return None
     if job["status"] == "done":
         out = job.get("output_url") or f"/api/jobs/{job['id']}/output"
+        # timeline.json 与 mp4/webm/mov 一起在 recorder 里落地,disk 上存在才暴露 URL。
+        # 老 job 没 timeline.json 时 timeline_url 留 None,前端按钮不显示,不影响下载。
+        tl = timeline_path(job["user_id"], job["session_id"], job["id"])
+        timeline_url = (
+            f"/api/jobs/{job['id']}/timeline" if tl.is_file() else None
+        )
     else:
         out = None
+        timeline_url = None
     return {
         "id": job["id"],
         "status": job["status"],
@@ -73,6 +102,11 @@ async def get_job_status(job_id: str, user_id: str | None = None) -> dict | None
         "error": job["error"],
         "created_at": job["created_at"],
         "finished_at": job["finished_at"],
+        # 透传到前端,让下载按钮 / 文件名按实际产物走。
+        # 老数据里这列是空(列是后续迁移加的,见 db._ensure_columns),
+        # 前端在 ProgressPanel 拿不到时按 'mp4' 兜底,不破坏 UI。
+        "output_ext": job.get("output_ext"),
+        "timeline_url": timeline_url,
     }
 
 
@@ -112,10 +146,18 @@ async def current_event(job: dict) -> dict:
     if job["status"] == "failed":
         return {"status": "failed", "progress": 0, "error": job.get("error")}
     if job["status"] == "done":
+        # SSE done 事件里把 timeline_url 一起带上,前端无需再额外轮询一次
+        # GET /api/jobs/{id} 就能立刻看到「查看时间码」按钮。
+        tl = timeline_path(job["user_id"], job["session_id"], job["id"])
+        timeline_url = (
+            f"/api/jobs/{job['id']}/timeline" if tl.is_file() else None
+        )
         return {
             "status": "done",
             "progress": 100,
             "output_url": job.get("output_url") or f"/api/jobs/{job['id']}/output",
+            "output_ext": job.get("output_ext"),
+            "timeline_url": timeline_url,
         }
     return {"status": job["status"], "progress": job["progress"], "output_url": None}
 
@@ -148,17 +190,37 @@ async def _process_job(job_id: str) -> None:
             await db.update_job_status_async(job_id, "running", percent)
             _publish(job_id, {"status": "running", "progress": percent})
 
-        await recorder.render_video(
-            dsl=dsl,
-            job_id=job_id,
-            user_id=user_id,
-            session_id=session_id,
-            progress_callback=progress_cb,
-        )
+        if dsl.transparent:
+            fmt = dsl.transparent_format or "webm_vp9_alpha"
+            await recorder.render_video_transparent(
+                dsl=dsl,
+                job_id=job_id,
+                user_id=user_id,
+                session_id=session_id,
+                progress_callback=progress_cb,
+                format=fmt,
+            )
+        else:
+            await recorder.render_video(
+                dsl=dsl,
+                job_id=job_id,
+                user_id=user_id,
+                session_id=session_id,
+                progress_callback=progress_cb,
+            )
 
         output_url = f"/api/jobs/{job_id}/output"
         await db.finish_job_async(job_id, "done", None)
-        _publish(job_id, {"status": "done", "progress": 100, "output_url": output_url})
+        tl = timeline_path(user_id, session_id, job_id)
+        timeline_url = f"/api/jobs/{job_id}/timeline" if tl.is_file() else None
+        _publish(job_id, {
+            "status": "done",
+            "progress": 100,
+            "output_url": output_url,
+            # 把 output_ext 一起广播,前端 SSE 在 done 事件里就能拿到最终格式。
+            "output_ext": job.get("output_ext"),
+            "timeline_url": timeline_url,
+        })
         logger.info("Job %s done", job_id)
     except Exception as exc:  # noqa: BLE001 — worker 异常不导致进程退出
         await db.finish_job_async(job_id, "failed", str(exc))

@@ -117,6 +117,8 @@ my-dialogue/
   "schema_version": "1.0",
   "kind": "chat",
   "template": "cyberpunk",
+  "transparent": false,
+  "transparent_format": null,
   "scene": {
     "mode": "single",
     "title": "周末计划",
@@ -141,6 +143,8 @@ my-dialogue/
 }
 ```
 
+> `"transparent": false` + `"transparent_format": null` 是默认值，产物走传统不透明 `MP4 (H.264)`。想做透明背景请参考 §4.3。
+
 ### 4.2 字段说明（速查）
 
 只列**和图片引用相关**的字段。其他字段看 [02-data-model.md](./02-data-model.md)。
@@ -152,7 +156,7 @@ my-dialogue/
 | `scene.messages[i].sender_id` | 发送者 id；必须是 `participants` 里的 id，或 `__system__` | `"alice"` / `"__system__"` |
 | `scene.messages[i].image_url` | 第 i 条图片消息的图片 zip 内路径 | `"images/chat-1.jpg"` |
 | `scene.messages[i].cover_url` | 第 i 条视频消息的封面 zip 内路径 | `"images/video-cover.jpg"` |
-| `scene.messages[i].video_url` | 第 i 条视频消息的视频本体 | 见下方"视频消息特殊处理" |
+| `scene.messages[i].video_url` | 第 i 条视频消息的视频本体 | 见下方 §4.5 视频消息特殊处理 |
 
 > **关于 `__system__` 的严格限制**：`sender_id` 写成 `__system__` 时，`kind` **只能是** `"sys"` 或 `"timestamp"`。`kind` 为 `"text"` / `"image"` / `"video"` / `"emoji"` 的消息必须由真实参与者发送，否则会报 `dsl_validation_failed`。
 
@@ -163,6 +167,7 @@ my-dialogue/
 | `scene.intro_effect` | 开场特效 | `"none"` / `"scanline"` / `"typewriter"` |
 | `scene.duration_ms` | 视频总时长（毫秒）；不填则自动计算 | `30000` |
 | `scene.opacity` | 整体透明度 `0.0` ~ `1.0` | `1.0` |
+| `scene.background_visible` | 纯 UI 层模式开关；false 时只渲染聊天元素，隐藏背景色 / 背景图 / 主题装饰层 | `true` |
 | `scene.watermark.badge_style` | AI 角标样式 | `"neon"` / `"minimal"` / `"retro"` |
 | `messages[i].align` | 强制消息方向 | `"left"` / `"right"` |
 | `messages[i].reply_to` | 回复引用的消息序号（从 1 开始） | `1` |
@@ -179,7 +184,127 @@ my-dialogue/
 "avatar_url": "https://cdn.../alice.png" // ✓ 远程 URL，按原样用
 ```
 
-### 4.3 视频消息特殊处理
+### 4.3 透明背景输出
+
+想要透明背景视频（叠加到其他视频上、网页 GIF 背景、PNG 序列二次处理），可以在 DSL 顶层加这两个字段：
+
+| 字段路径 | 写什么 | 示例 |
+|---|---|---|
+| `transparent` | 是否输出透明背景 | `true` / `false` |
+| `transparent_format` | 透明视频的封装格式（`transparent=true` 时必填；不填后端按 `webm_vp9_alpha` 兜底） | `"webm_vp9_alpha"` / `"mov_prores4444"` |
+
+最简示例（10 秒钟"半透明对话框"动画，用于叠在风景视频上）：
+
+```json
+{
+  "schema_version": "1.0",
+  "kind": "chat",
+  "template": "cyberpunk",
+  "transparent": true,
+  "transparent_format": "webm_vp9_alpha",
+  "scene": {
+    "...": "和 §4.1 一样，省略"
+  }
+}
+```
+
+#### 选哪个 format？
+
+| 格式 | 体积 | 浏览器播放 | alpha 是否确定 | 适用场景 |
+|---|---|---|---|---|
+| `webm_vp9_alpha`（推荐） | 小 | `<video>` 直接播放（Chrome / Edge / Firefox） | ⚠️ Chromium 默认把页面画在不透明 backdrop 上，CSS 注入 + ffmpeg `-pix_fmt yuva420p` 后仍可能有不完全透明的风险 | 想直接在网页里嵌入播放、或对体积敏感 |
+| `mov_prores4444` | 大 | ❌ 浏览器兼容差，需要下载后用 QuickTime / VLC / FFmpeg 播放 | ✅ 通过逐帧 PNG 截图（`omit_background=True`）+ ProRes 4444 封装，alpha 通道确定 | 二次剪辑（Premiere / Final Cut / DaVinci）、专业合成 |
+
+**结论**：
+
+- **绝大多数场景用 `webm_vp9_alpha`**：体积小、能在浏览器里直接 `<video>` 播放。
+- **专业剪辑 / 需要确定 alpha 的合成**用 `mov_prores4444`：alpha 通道确定，但浏览器内联播放兼容性差，请下载后用本地播放器打开。
+
+> `transparent=true` 时，前端 UI 在「step 5 预览生成」页面底部会显示下载按钮，文案与文件名按实际产物走（`video.webm` / `video.mov`）。
+
+### 4.4 纯 UI 层模式（纯聊天元素）
+
+这是一个**纯 UI 层**的开关（`scene.background_visible`），跟 §4.3 的"透明背景输出"是两回事：
+
+- §4.3 关心的是**输出格式**（MP4 / WebM / MOV、要不要 alpha 通道），是产物层的事
+- §4.4 关心的是**渲染什么**——背景色 / 背景图 / 主题装饰层要不要画，是 UI 层的事
+
+开关设成 `false` 时，页面里只保留聊天元素：
+
+- 隐藏：`scene.background` 整页背景色、`scene.background_image_url` 整页背景图
+- 隐藏主题装饰层（赛博朋克扫描线、水彩纸张纹理、漫画半调网点、pixel 扫描线、noir 颗粒 / 暗角 / 齿孔、ink 宣纸纤维 / 笔触 / 远山）
+- 保留：消息气泡、头像、发送者昵称、时间戳、系统消息、片头声明卡、AI 角标
+
+**默认值是 `true`**，不写这个字段就等于"显示背景层"，旧配置行为完全不变。
+
+#### 使用场景
+
+- 把对话剧场输出**叠加到其他视频上**（自己后期抠图/合成时，不需要任何背景干扰）
+- 做**表情包 / 贴纸 / GIF**——只要中间的对话气泡和头像
+- 在网页里把对话剧场当成**半透明浮层**嵌进去（搭配 §4.3 的透明背景输出使用）
+- 跟 `opacity` 配合，把整个对话剧场做成字幕条式的可叠加素材
+
+> **三种"可叠加素材"实现路径速查**：
+>
+> | 路径 | 关键字段 | 产物 | 抠图工具 |
+> |---|---|---|---|
+> | §4.3 透明背景输出 | `transparent: true` + `transparent_format` | 带 alpha 通道的 WebM / MOV | 必须用支持 alpha 的播放器 / 剪辑工具 |
+> | §4.4 纯 UI 层模式 | `scene.background_visible: false` | 普通不透明 MP4，但里面只画聊天元素（仍是实色背景） | 用任何工具把 MP4 当贴纸 / 浮层 |
+> | **§9.7 绿幕风格** | `template/style_theme: "green_screen"` | 普通不透明 MP4，整页是 `#00ff00` 纯绿 | 任何支持色键 / chroma key 的工具（PR / 剪映 / FFmpeg `chromakey` 滤镜） |
+>
+> 三种可以组合使用，最常见的组合是 `template: "green_screen"` + `scene.background_visible: false`（用绿幕 + 隐藏声明卡/标题栏），导出后再用色键扣掉绿色。
+
+#### 最简示例
+
+在 §4.1 的基础上只加一行 `"background_visible": false`：
+
+```json
+{
+  "schema_version": "1.0",
+  "kind": "chat",
+  "template": "cyberpunk",
+  "transparent": false,
+  "transparent_format": null,
+  "scene": {
+    "mode": "single",
+    "title": "周末计划",
+    "background": "#0a0a12",
+    "background_image_url": null,
+    "background_visible": false,
+    "style_theme": "cyberpunk",
+    "intent": "short_video_drama",
+    "intent_acknowledged": true,
+    "participants": [
+      { "id": "me",  "name": "我",  "avatar_url": "avatars/me.png",  "persona": "" },
+      { "id": "her", "name": "她", "avatar_url": "avatars/her.png", "persona": "" }
+    ],
+    "messages": [
+      { "sender_id": "me",  "kind": "text", "text": "在吗",        "delay_ms": 1500 },
+      { "sender_id": "her", "kind": "text", "text": "嗯，怎么了",  "delay_ms": 1500 },
+      { "sender_id": "me",  "kind": "text", "text": "周末吃饭？",  "delay_ms": 1500 }
+    ],
+    "watermark": {
+      "text": "本内容由 AI 生成 · 仅供创意表达",
+      "badge_style": "neon"
+    }
+  }
+}
+```
+
+#### 渲染对照
+
+| 元素 | `background_visible: true`（默认） | `background_visible: false` |
+|---|---|---|
+| `scene.background`（整页背景色） | 显示 | 隐藏（透明） |
+| `scene.background_image_url`（整页背景图） | 显示（如有设置） | 隐藏（不渲染） |
+| 主题装饰层（扫描线 / 噪点 / 网点 / 颗粒 / 宣纸 / 远山 等） | 显示 | 隐藏 |
+| 消息气泡 / 头像 / 发送者昵称 | 显示 | 显示 |
+| 时间戳 / 系统消息 / 片头声明卡 | 显示 | 显示 |
+| AI 角标（右下角） | 显示 | 显示（合规标识不可关闭） |
+
+> 这个开关只影响 UI 层是否绘制。输出格式仍由 `transparent` / `transparent_format` 决定（见 §4.3）。两者可以组合用——例如 `background_visible: false` + `transparent: true` + `transparent_format: "webm_vp9_alpha"` 就得到"只有聊天元素 + 透明背景"的可叠加素材。
+
+### 4.5 视频消息特殊处理
 
 视频**本体不能放进 zip**。但你可以把视频消息放在 DSL 里，视频 URL 写远程地址，封面图放 zip 里：
 
@@ -359,7 +484,7 @@ Archive:  my-dialogue.zip
 
 ---
 
-## 9. 六个常用模板（可直接复制）
+## 9. 七个常用模板（可直接复制）
 
 ### 9.1 纯文字对谈
 
@@ -575,6 +700,57 @@ zip -r ../my-dialogue.zip dsl.json
 }
 ```
 
+### 9.7 绿幕风格（方便后期抠像）
+
+整页背景统一 `#00ff00`、顶部标题栏和片头声明卡都使用同色背景 + 黑字、没有任何主题装饰层。导出普通不透明 MP4 后，用 PR / 剪映 / FFmpeg 的色键（chroma key）功能把绿色扣掉，就能把"对话气泡 + 头像"合成到任意背景上。
+
+实现成本最低：不需要 alpha 通道，不需要特殊播放器，任何能处理视频的工具都能用。
+
+```json
+{
+  "schema_version": "1.0",
+  "kind": "chat",
+  "template": "green_screen",
+  "scene": {
+    "mode": "single",
+    "title": "可合成对白",
+    "background": "#00ff00",
+    "style_theme": "green_screen",
+    "intent": "short_video_drama",
+    "intent_acknowledged": true,
+    "participants": [
+      { "id": "me",   "name": "我",   "avatar_url": null, "persona": "" },
+      { "id": "her",  "name": "她",   "avatar_url": null, "persona": "" }
+    ],
+    "messages": [
+      { "sender_id": "her", "kind": "text", "text": "周末有空吗？", "delay_ms": 1500 },
+      { "sender_id": "me",  "kind": "text", "text": "有，怎么了",   "delay_ms": 1500 },
+      { "sender_id": "her", "kind": "text", "text": "想请你吃饭",   "delay_ms": 1500 },
+      { "sender_id": "me",  "kind": "text", "text": "好呀",         "delay_ms": 1500 }
+    ],
+    "watermark": {
+      "text": "本内容由 AI 生成 · 仅供创意表达",
+      "badge_style": "minimal"
+    }
+  }
+}
+```
+
+**关键设计点**：
+
+- `template` 与 `style_theme` 都写 `"green_screen"`，后端校验器会自动同步
+- `background` 可以不写（默认就是 `#00ff00`）；写别的颜色反而会破坏抠像效果
+- 顶部标题栏 / 片头声明卡都用同色背景 + 黑字，抠像后这两块会**整块消失**，只剩下气泡和 AI 角标
+- 自己气泡黑底白字，他人气泡白底黑字，任何合成背景都能清晰阅读
+- AI 角标用 `badge_style: "minimal"`（白底黑边）最稳，避免被绿幕吞掉
+
+**和 §4.3 / §4.4 怎么选**：
+
+- 想要**色键抠像（最通用）** → 用 `template: "green_screen"`（本节），产物是普通 MP4
+- 想要**程序化 alpha 通道** → 用 `transparent: true` + `transparent_format: "webm_vp9_alpha"`（§4.3），但浏览器 / 剪辑工具必须支持 alpha
+- 想要**纯聊天元素、不要主题装饰** → 加 `scene.background_visible: false`（§4.4），但气泡本身仍是不透明的
+- 想要"绿幕 + 不显示标题栏/声明卡" → 三者组合：`template: "green_screen"` + `scene.background_visible: false`
+
 ---
 
 ## 10. 常见错误 FAQ
@@ -651,13 +827,25 @@ A: 替换 = 删除旧 file_id 再上传新 file_id。当前不支持"覆盖模�
 
 A: 没影响。后端会忽略 zip 内所有没被 DSL 引用的文件，最多在响应 `warnings` 数组里告诉你哪些被忽略了。
 
+### Q: 想要透明背景视频（合成到其他视频里），怎么操作？
+
+A: 在 `dsl.json` 顶层加 `"transparent": true` 并指定 `"transparent_format"`。推荐 `"webm_vp9_alpha"`（体量小、浏览器友好）。专业剪辑场景用 `"mov_prores4444"`，alpha 通道确定但浏览器内联播放差，需要下载后用 QuickTime / VLC 播放。详见 §4.3。
+
+### Q: 想要纯 UI 模式（只显示聊天元素、不要背景）怎么操作？
+
+A: 在 `dsl.json` 的 `scene` 顶层加 `"background_visible": false`。开关关闭后渲染时只画聊天元素（消息气泡、头像、发送者昵称、时间戳、系统消息、片头声明卡、AI 角标），背景色、背景图和主题装饰层（扫描线 / 噪点 / 网点 / 颗粒 / 宣纸 / 远山 等）全部隐藏。详见 §4.4。
+
+### Q: 想要"绿幕背景"方便后期抠像，怎么操作？
+
+A: 在 `dsl.json` 里把 `"template"` 和 `"scene.style_theme"` 都设成 `"green_screen"`，导出就是不透明 MP4，整页是 `#00ff00` 纯绿。后期用 PR / 剪映 / FFmpeg 的色键（chroma key）功能扣掉绿色，就能把对话气泡合成到任意背景上。实现成本最低，详见 §9.7。
+
 ---
 
 ## 11. 导入成功之后
 
 1. 你已经在第 5 步（预览生成），iframe 里能看到刚才 DSL 配置的对话动画
 2. 想再调整？手动编辑表单或重新拖一个 zip 进来（**会覆盖**当前 DSL）
-3. 满意了？点右下角"生成视频"按钮 → 后端开始录制 → 完成后点下载得到 MP4
+3. 满意了？点右下角"生成视频"按钮 → 后端开始录制 → 完成后点下载得到 MP4 / WebM / MOV（取决于你在 §4.3 里选的格式）
 
 > 视频生成视频的限制与"零基础编辑"完全一致：单聊 2 角色、群聊 2+ 角色、消息 ≤ 300 条、首条消息间隔 ≥ 500ms。
 > 详见 [06-acceptance.md](./06-acceptance.md)。

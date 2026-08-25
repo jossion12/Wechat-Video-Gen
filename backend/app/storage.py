@@ -57,6 +57,22 @@ EXT_TO_MIME: dict[str, str] = {
 }
 
 OUTPUT_EXT = "mp4"
+# 透明背景产物的扩展名。video 容器本身决定透明与否(VP9 + yuva420p / ProRes 4444),
+# 见 backend/app/recorder.py::render_video_transparent。
+OUTPUT_EXT_WEBM_ALPHA = "webm"
+OUTPUT_EXT_MOV_PRORES = "mov"
+
+# 时间码 JSON 的扩展名(后缀固定,不随产物格式变化 —— 不透明/透明两条产物线都共用
+# 同一个 timeline.json)。见 backend/app/recorder.py 与 docs/03-api.md §3.x 时间码段。
+TIMELINE_EXT = "timeline.json"
+TIMELINE_MIME = "application/json"
+
+# 扩展名 → 产物 MIME(供 serve_output 正确响应客户端)
+OUTPUT_MIME: dict[str, str] = {
+    OUTPUT_EXT: "video/mp4",
+    OUTPUT_EXT_WEBM_ALPHA: "video/webm",
+    OUTPUT_EXT_MOV_PRORES: "video/quicktime",
+}
 
 
 # ---------- 路径辅助 ----------
@@ -113,6 +129,14 @@ def output_path(user_id: str, session_id: str, job_id: str, ext: str = OUTPUT_EX
     return output_dir(user_id, session_id) / f"{job_id}.{ext}"
 
 
+def timeline_path(user_id: str, session_id: str, job_id: str) -> Path:
+    """timeline.json 路径 —— 与 mp4/webm/mov 产物同目录,文件名 `{job_id}.timeline.json`。
+
+    见 docs/03-api.md §3.x 时间码导出。
+    """
+    return output_dir(user_id, session_id) / f"{job_id}.{TIMELINE_EXT}"
+
+
 def remove_session(user_id: str, session_id: str) -> None:
     """删整个 session 的目录(素材 + 产物),容错。"""
     sd = session_dir(user_id, session_id)
@@ -134,6 +158,15 @@ def remove_output(user_id: str, session_id: str, job_id: str, ext: str = OUTPUT_
         p.unlink(missing_ok=True)
     except OSError as exc:
         logger.warning("remove_output failed: %s (%s)", p, exc)
+
+
+def remove_timeline(user_id: str, session_id: str, job_id: str) -> None:
+    """删 timeline.json(渲染失败清理时与 mp4/webm/mov 一起清),容错。"""
+    p = timeline_path(user_id, session_id, job_id)
+    try:
+        p.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning("remove_timeline failed: %s (%s)", p, exc)
 
 
 def list_outputs(user_id: str, session_id: str) -> list[Path]:

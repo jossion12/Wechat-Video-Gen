@@ -28,6 +28,10 @@ export function useRenderJob(jobId: string | null) {
         progress: ev.progress ?? prev.progress,
         output_url: ev.output_url ?? prev.output_url,
         error: ev.error ?? prev.error,
+        // SSE 终态事件里会带 output_ext;中间状态不会,沿用前次 snapshot。
+        output_ext: ev.output_ext ?? prev.output_ext,
+        // done 事件里也会带 timeline_url;其余状态/中间帧保持前值。
+        timeline_url: ev.timeline_url ?? prev.timeline_url,
       };
     });
   }, []);

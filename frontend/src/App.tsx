@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRenderJob } from './hooks/useRenderJob';
 import { createSession, importZip, submitRender } from './api';
-import type { ChatScene, Message, Participant, VideoDSL } from './types';
+import type {
+  ChatScene,
+  Message,
+  Participant,
+  TransparentFormat,
+  VideoDSL,
+} from './types';
 import { THEME_DEFAULT_BACKGROUND } from './types';
 import { validateConfig } from './validate';
 import { AIGeneratePanel } from './components/AIGeneratePanel';
@@ -12,6 +19,7 @@ import { PreviewPanel } from './components/PreviewPanel';
 import { ProgressPanel } from './components/ProgressPanel';
 import { StaticPreview } from './components/StaticPreview';
 import { SummaryStep } from './components/SummaryStep';
+import { TimelinePanel } from './components/TimelinePanel';
 import { WizardLayout, type WizardStep } from './components/WizardLayout';
 
 const SYSTEM_ID = '__system__';
@@ -31,6 +39,7 @@ function createDefaultScene(): ChatScene {
     title: '对话剧场',
     background: THEME_DEFAULT_BACKGROUND.comic,
     background_image_url: null,
+    background_visible: true,
     duration_ms: null,
     opacity: 1,
     intro_effect: 'none',
@@ -49,6 +58,10 @@ function createDefaultDSL(): VideoDSL {
     kind: 'chat',
     template: 'cyberpunk',
     scene: createDefaultScene(),
+    // 默认产出传统不透明 mp4;用户去 step 5 主动开启 transparent 后才会走
+    // webm_vp9_alpha / mov_prores4444 路径(详见 docs/09-how-to-make-package.md §4.3)。
+    transparent: false,
+    transparent_format: null,
   };
 }
 
@@ -143,6 +156,7 @@ export default function App() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);  // 顶层切到时间码视图
   const importInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -206,9 +220,25 @@ export default function App() {
     }));
   }, []);
 
+  // 透明背景输出选项(direct dsl-level patch),与 updateScene 同风格
+  // ——只覆盖传入的字段,不重新生成整段 dsl。
+  const updateOutputOptions = useCallback(
+    (patch: {
+      transparent?: boolean;
+      transparent_format?: TransparentFormat | null;
+    }) => {
+      setDsl((prev) => ({ ...prev, ...patch }));
+    },
+    [],
+  );
+
   const handleApplyGeneratedDSL = useCallback((generated: VideoDSL) => {
     setDsl((prev) => ({
+      // 先铺开 AI 给的字段,但...
       ...generated,
+      // ...保留用户当前的输出格式选择 —— AI 生成对话内容时不应触碰用户的产物形态偏好。
+      transparent: prev.transparent,
+      transparent_format: prev.transparent_format,
       scene: {
         ...generated.scene,
         // 保留用户当前已确认的创作意图与合规承诺状态
@@ -327,6 +357,7 @@ export default function App() {
             mode={dsl.scene.mode}
             title={dsl.scene.title}
             backgroundImage={dsl.scene.background_image_url}
+            backgroundVisible={dsl.scene.background_visible}
             opacity={dsl.scene.opacity}
             introEffect={dsl.scene.intro_effect}
             styleTheme={dsl.scene.style_theme}
@@ -365,7 +396,12 @@ export default function App() {
       case 5:
         return (
           <>
-            <SummaryStep scene={dsl.scene} />
+            <SummaryStep
+              scene={dsl.scene}
+              transparent={dsl.transparent}
+              transparent_format={dsl.transparent_format}
+              onOutputChange={updateOutputOptions}
+            />
             {sessionError && <div className="error-banner">会话初始化失败: {sessionError}</div>}
             {submitError && <div className="error-banner">{submitError}</div>}
           </>
@@ -404,6 +440,12 @@ export default function App() {
         </button>
       </header>
       {importError && <div className="error-banner">{importError}</div>}
+      {showTimeline && jobId ? (
+        <TimelineViewWrapper
+          jobId={jobId}
+          onBack={() => setShowTimeline(false)}
+        />
+      ) : (
       <WizardLayout
         steps={STEPS}
         currentStep={currentStep}
@@ -416,7 +458,12 @@ export default function App() {
             <StaticPreview step={currentStep as 1 | 2 | 3 | 4} scene={dsl.scene} />
           )
         }
-        extraPreview={currentStep === TOTAL_STEPS ? <ProgressPanel jobId={jobId} /> : null}
+        extraPreview={currentStep === TOTAL_STEPS ? (
+          <ProgressPanel
+            jobId={jobId}
+            onViewTimeline={() => setShowTimeline(true)}
+          />
+        ) : null}
         hint={hint}
         className={dragOver ? 'wizard-layout--dragover' : undefined}
         style={importing ? { pointerEvents: 'none', opacity: 0.6 } : undefined}
@@ -455,6 +502,28 @@ export default function App() {
           )
         }
       />
+      )}
+    </div>
+  );
+}
+
+/**
+ * 时间码视图壳 — 用 ProgressPanel 同款 hook 拉一次状态拿到 timeline_url,
+ * 再传给 TimelinePanel。这样按钮的可见性逻辑与 ProgressPanel 完全一致
+ * (status == 'done' 且 timeline_url 非空),不会出现按钮被点开但页面拿不到数据的 bug。
+ */
+function TimelineViewWrapper({ jobId, onBack }: { jobId: string; onBack: () => void }) {
+  const { job } = useRenderJob(jobId);
+  const timelineUrl = job?.timeline_url ?? null;
+  return (
+    <div className="wizard-layout">
+      <div className="wizard-main">
+        <TimelinePanel
+          jobId={jobId}
+          onBack={onBack}
+          timelineUrl={timelineUrl}
+        />
+      </div>
     </div>
   );
 }
