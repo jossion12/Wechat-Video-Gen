@@ -16,9 +16,9 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 
-from app import db, recorder
+from app import db, recorder, tts_service
 from app.dsl import VideoDSL
-from app.storage import timeline_path
+from app.storage import EXT_AUDIO_WAV, timeline_path
 
 logger = logging.getLogger("queue")
 
@@ -65,12 +65,39 @@ async def enqueue(dsl: VideoDSL, session_id: str, user_id: str) -> str:
         user_id=user_id,
         config=config,
         output_ext=output_ext,
+        kind="render",
     )
     await db.touch_session_async(session_id)
     _queue.put_nowait(job_id)
     logger.info(
         "Job %s queued (user=%s session=%s output_ext=%s)",
         job_id, user_id, session_id, output_ext,
+    )
+    return job_id
+
+
+async def enqueue_tts(tts_config: dict, session_id: str, user_id: str) -> str:
+    """入队一个 TTS 多角色对话合成任务(2025-Q3 新增)。
+
+    与 enqueue() 平级:同一 asyncio.Queue、同一组 worker,
+    _process_job 按 jobs.kind 分发到 tts_service.synthesize()。
+    """
+    if _queue.full():
+        raise QueueFullError("queue is full")
+    job_id = uuid.uuid4().hex[:26]
+    await db.insert_job_async(
+        job_id=job_id,
+        session_id=session_id,
+        user_id=user_id,
+        config=tts_config,
+        output_ext=EXT_AUDIO_WAV,
+        kind="tts",
+    )
+    await db.touch_session_async(session_id)
+    _queue.put_nowait(job_id)
+    logger.info(
+        "TTS job %s queued (user=%s session=%s asr_file_id=%s)",
+        job_id, user_id, session_id, tts_config.get("asr_file_id"),
     )
     return job_id
 
@@ -87,6 +114,7 @@ async def get_job_status(job_id: str, user_id: str | None = None) -> dict | None
         out = job.get("output_url") or f"/api/jobs/{job['id']}/output"
         # timeline.json 与 mp4/webm/mov 一起在 recorder 里落地,disk 上存在才暴露 URL。
         # 老 job 没 timeline.json 时 timeline_url 留 None,前端按钮不显示,不影响下载。
+        # TTS 任务根本不会写 timeline.json,这里自然就是 None。
         tl = timeline_path(job["user_id"], job["session_id"], job["id"])
         timeline_url = (
             f"/api/jobs/{job['id']}/timeline" if tl.is_file() else None
@@ -107,6 +135,12 @@ async def get_job_status(job_id: str, user_id: str | None = None) -> dict | None
         # 前端在 ProgressPanel 拿不到时按 'mp4' 兜底,不破坏 UI。
         "output_ext": job.get("output_ext"),
         "timeline_url": timeline_url,
+        # TTS pipeline(2025-Q3)引入:前端按 kind 路由下载/播放 UI;老 job 走
+        # _ensure_columns 兼容迁移落 "render"。
+        "kind": job.get("kind", "render"),
+        # TTS 单段失败明细:仅 kind="tts" 的 done 任务里非空;render 任务与
+        # 未跑完的 tts 任务里都是 None(db 层已 json.loads 过)。
+        "metadata_json": job.get("metadata_json"),
     }
 
 
@@ -144,7 +178,12 @@ def unsubscribe(job_id: str, q: asyncio.Queue) -> None:
 async def current_event(job: dict) -> dict:
     """SSE 初始快照 / 最终状态事件。"""
     if job["status"] == "failed":
-        return {"status": "failed", "progress": 0, "error": job.get("error")}
+        return {
+            "status": "failed",
+            "progress": 0,
+            "error": job.get("error"),
+            "kind": job.get("kind", "render"),
+        }
     if job["status"] == "done":
         # SSE done 事件里把 timeline_url 一起带上,前端无需再额外轮询一次
         # GET /api/jobs/{id} 就能立刻看到「查看时间码」按钮。
@@ -158,8 +197,17 @@ async def current_event(job: dict) -> dict:
             "output_url": job.get("output_url") or f"/api/jobs/{job['id']}/output",
             "output_ext": job.get("output_ext"),
             "timeline_url": timeline_url,
+            # TTS pipeline(2025-Q3):前端按 kind 区分 UI;
+            # metadata_json 在 kind="tts" 的 done 任务里会有 {"failed_segments": [...]}。
+            "kind": job.get("kind", "render"),
+            "metadata_json": job.get("metadata_json"),
         }
-    return {"status": job["status"], "progress": job["progress"], "output_url": None}
+    return {
+        "status": job["status"],
+        "progress": job["progress"],
+        "output_url": None,
+        "kind": job.get("kind", "render"),
+    }
 
 
 def _publish(job_id: str, event: dict) -> None:
@@ -173,58 +221,90 @@ def _publish(job_id: str, event: dict) -> None:
 # ---------- worker ----------
 
 async def _process_job(job_id: str) -> None:
-    """处理单个任务:任何异常都落到 failed 状态,不影响 worker 循环。"""
+    """处理单个任务:任何异常都落到 failed 状态,不影响 worker 循环。
+
+    kind == "tts" 走 tts_service.synthesize()(2025-Q3 新增),其它原逻辑不变。
+    """
     job = await db.get_job_async(job_id)
     if job is None:
         return
     user_id: str = job["user_id"]
     session_id: str = job["session_id"]
+    kind: str = job.get("kind", "render")
     try:
-        logger.info("Worker picked up %s (user=%s session=%s)", job_id, user_id, session_id)
+        logger.info(
+            "Worker picked up %s kind=%s (user=%s session=%s)",
+            job_id, kind, user_id, session_id,
+        )
         await db.update_job_status_async(job_id, "running", 0)
-        _publish(job_id, {"status": "running", "progress": 0})
-
-        dsl = VideoDSL.model_validate(job["config"])
+        _publish(job_id, {"status": "running", "progress": 0, "kind": kind})
 
         async def progress_cb(percent: int) -> None:
             await db.update_job_status_async(job_id, "running", percent)
-            _publish(job_id, {"status": "running", "progress": percent})
-
-        if dsl.transparent:
-            fmt = dsl.transparent_format or "webm_vp9_alpha"
-            await recorder.render_video_transparent(
-                dsl=dsl,
-                job_id=job_id,
-                user_id=user_id,
-                session_id=session_id,
-                progress_callback=progress_cb,
-                format=fmt,
-            )
-        else:
-            await recorder.render_video(
-                dsl=dsl,
-                job_id=job_id,
-                user_id=user_id,
-                session_id=session_id,
-                progress_callback=progress_cb,
-            )
+            _publish(job_id, {"status": "running", "progress": percent, "kind": kind})
 
         output_url = f"/api/jobs/{job_id}/output"
-        await db.finish_job_async(job_id, "done", None)
+        metadata_json: str | None = None
+
+        if kind == "tts":
+            wav_path = await tts_service.synthesize(
+                job_id=job_id,
+                user_id=user_id,
+                session_id=session_id,
+                config=job["config"],
+                progress_cb=progress_cb,
+            )
+            # tts_service.synthesize 把单段失败明细写到 wav 同目录的 .meta.json;
+            # 这里读完即删(避免半成品),再透传给 finish_job 落库。
+            meta_path = wav_path.with_name(f"{wav_path.stem}.meta.json")
+            if meta_path.is_file():
+                metadata_json = meta_path.read_text(encoding="utf-8")
+                meta_path.unlink(missing_ok=True)
+        else:
+            dsl = VideoDSL.model_validate(job["config"])
+            if dsl.transparent:
+                fmt = dsl.transparent_format or "webm_vp9_alpha"
+                await recorder.render_video_transparent(
+                    dsl=dsl,
+                    job_id=job_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    progress_callback=progress_cb,
+                    format=fmt,
+                )
+            else:
+                await recorder.render_video(
+                    dsl=dsl,
+                    job_id=job_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    progress_callback=progress_cb,
+                )
+
+        await db.finish_job_async(job_id, "done", None, metadata_json=metadata_json)
         tl = timeline_path(user_id, session_id, job_id)
         timeline_url = f"/api/jobs/{job_id}/timeline" if tl.is_file() else None
+        # SSE done 事件:重新读一次 job 让 metadata_json 走 db 的 json.loads 路径,
+        # 避免这里再手工解析一次(也保证 _publish 出去的形态与 current_event 一致)。
+        done_job = await db.get_job_async(job_id)
         _publish(job_id, {
             "status": "done",
             "progress": 100,
             "output_url": output_url,
-            # 把 output_ext 一起广播,前端 SSE 在 done 事件里就能拿到最终格式。
             "output_ext": job.get("output_ext"),
             "timeline_url": timeline_url,
+            "kind": kind,
+            "metadata_json": (done_job or {}).get("metadata_json"),
         })
-        logger.info("Job %s done", job_id)
+        logger.info("Job %s done (kind=%s)", job_id, kind)
     except Exception as exc:  # noqa: BLE001 — worker 异常不导致进程退出
         await db.finish_job_async(job_id, "failed", str(exc))
-        _publish(job_id, {"status": "failed", "progress": 0, "error": str(exc)})
+        _publish(job_id, {
+            "status": "failed",
+            "progress": 0,
+            "error": str(exc),
+            "kind": kind,
+        })
         logger.exception("Job %s failed: %s", job_id, exc)
 
 

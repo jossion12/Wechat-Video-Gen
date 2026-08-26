@@ -10,6 +10,7 @@ import type {
   SessionDetail,
   SessionInfo,
   TimelineDocument,
+  TtsBySourceResponse,
   VideoDSL,
 } from './types';
 
@@ -190,6 +191,44 @@ export function subscribeJobEvents(
     cancelled = true;
     controller.abort();
   };
+}
+
+// ---------- TTS 多角色对话合成(2025-Q3) ----------
+
+/**
+ * 从已渲染视频任务派生 ASR → 入队 TTS 任务。
+ * 后端从 source job_id 的 config_json 抽对话文本,落 ASR JSON,
+ * 再入队 tts 任务,config_json 里塞 source_job_id 反查标记。
+ *
+ * 返回 { tts_job_id, status: 'queued' };后续状态走 /api/jobs/{tts_job_id} 或 SSE。
+ */
+export async function submitTtsFromJob(
+  jobId: string,
+): Promise<{ tts_job_id: string; status: string }> {
+  return requestJson<{ tts_job_id: string; status: string }>(
+    '/api/tts/from-job',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: jobId }),
+    },
+  );
+}
+
+/**
+ * 时间码页持久化查询:返回该 render job 最近一个 TTS 子任务的状态。
+ *
+ * 契约(2025-Q3):
+ *   - 后端找到 → 200 + body 含 tts_job_id / status / progress / output_url /
+ *     error / metadata_json;
+ *   - 后端没找到 → 200 + body 直接是 null(不是 404);
+ *
+ * 前端拿到 null 就显示「生成语音」按钮,非 null 就按 status 走 done/running/failed 分支。
+ */
+export function getTtsBySourceJob(jobId: string): Promise<TtsBySourceResponse | null> {
+  return requestJson<TtsBySourceResponse | null>(
+    `/api/tts/by-source/${encodeURIComponent(jobId)}`,
+  );
 }
 
 // ---------- sessions ----------

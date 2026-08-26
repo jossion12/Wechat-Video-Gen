@@ -1,0 +1,26 @@
+{
+  "_comment": "Qwen3-TTS 多角色对话合成的默认音色 / 语气映射 —— 复制为 tts_voices.json 后按需修改。TTS_VOICE_CONFIG 指向本文件;文件不存在时后端回退内置默认值并 logger.warning,不影响启动。available_speakers 只作 UI 提示,实际可用列表由 model.get_supported_speakers() 给出(/api/tts/voices 可查)。",
+
+  "default_speakers": {
+    "laoyan": "Ryan",
+    "xiaoqiang": "Ethan",
+    "jingjie": "Vivian",
+    "abin": "Adam"
+  },
+
+  "default_instructs": {
+    "laoyan": "用沉稳、权威的语气,像资深农业分析师一样说话",
+    "xiaoqiang": "用略带焦虑、朴实的语气,像基层养殖户一样说话",
+    "jingjie": "用冷静、理性的语气,像数据研究员一样说话",
+    "abin": "用干脆、直接的语气,像行业老手一样说话"
+  },
+
+  "available_speakers": [
+    "Ryan",
+    "Ethan",
+    "Vivian",
+    "Adam",
+    "Emma",
+    "Olivia"
+  ]
+}

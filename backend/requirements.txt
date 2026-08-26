@@ -6,3 +6,17 @@ python-multipart==0.0.*
 pytest==8.*
 pytest-asyncio==0.24.*
 httpx==0.27.*
+
+# ---------- TTS 多角色对话合成(2025-Q3) ----------
+# 见 docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md。
+# torch 单独装在 Dockerfile 里(cu121),这里去掉裸 'torch' 避免被覆盖成 CPU 版。
+# 本地裸跑(非 Docker)想用 GPU 的话手动装:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+# 没 GPU 直接装 CPU 版即可:
+#   pip install torch
+numpy
+soundfile
+scipy
+# qwen_tts 官方包需要从 GitHub 装(没在 PyPI),注意 Windows 下 git 要能访问 github:
+#   pip install git+https://github.com/QwenLM/Qwen3-TTS.git
+qwen-tts @ git+https://github.com/QwenLM/Qwen3-TTS.git

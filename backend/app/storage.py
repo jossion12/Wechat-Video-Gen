@@ -54,6 +54,10 @@ EXT_TO_MIME: dict[str, str] = {
     "jpeg": "image/jpeg",
     "webp": "image/webp",
     "gif": "image/gif",
+    # TTS 多角色对话合成(2025-Q3):ASR JSON 上传走 /api/tts/import-asr,
+    # 复用 save_upload_bytes 落盘,这里把 json 加进白名单(它不是图片素材,不会
+    # 进 /api/upload,只被 TTS 端点用)。
+    "json": "application/json",
 }
 
 OUTPUT_EXT = "mp4"
@@ -61,6 +65,8 @@ OUTPUT_EXT = "mp4"
 # 见 backend/app/recorder.py::render_video_transparent。
 OUTPUT_EXT_WEBM_ALPHA = "webm"
 OUTPUT_EXT_MOV_PRORES = "mov"
+# TTS 多角色对话合成产物的扩展名(wav,24kHz mono)。见 backend/app/tts_service.py。
+EXT_AUDIO_WAV = "wav"
 
 # 时间码 JSON 的扩展名(后缀固定,不随产物格式变化 —— 不透明/透明两条产物线都共用
 # 同一个 timeline.json)。见 backend/app/recorder.py 与 docs/03-api.md §3.x 时间码段。
@@ -72,6 +78,7 @@ OUTPUT_MIME: dict[str, str] = {
     OUTPUT_EXT: "video/mp4",
     OUTPUT_EXT_WEBM_ALPHA: "video/webm",
     OUTPUT_EXT_MOV_PRORES: "video/quicktime",
+    EXT_AUDIO_WAV: "audio/wav",
 }
 
 

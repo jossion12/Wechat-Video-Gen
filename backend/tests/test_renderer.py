@@ -907,7 +907,7 @@ def test_ink_timestamp_message():
 
 
 def test_ink_sys_message():
-    """✅ ink 系统消息渲染为朱红方印，无头像。"""
+    """✅ ink 系统消息渲染为朱红方印 + 完整正文，无头像。"""
     dsl = make_ink_dsl(
         messages=[
             Message(sender_id="__system__", kind="sys", text="风起云隐", delay_ms=1500)
@@ -916,7 +916,29 @@ def test_ink_sys_message():
     html = render_dsl(dsl)
     assert 'class="sys-seal"' in html
     assert "风" in html  # 首字印章
+    assert 'class="sys-text"' in html
+    assert "风起云隐" in html  # 完整正文不被吞掉
     assert 'class="avatar' not in html
+
+
+def test_ink_sys_message_long_text():
+    """✅ ink 系统消息长文本完整渲染，不只剩印章字。"""
+    text = "粮食涨价，农资更疯。先别急着囤货，看完再决定当不当炮灰。"
+    dsl = make_ink_dsl(
+        messages=[Message(sender_id="__system__", kind="sys", text=text, delay_ms=1500)]
+    )
+    html = render_dsl(dsl)
+    assert 'class="sys-text"' in html
+    assert text in html
+    assert html.count('class="sys-text"') == 1
+    seal_match = re.search(
+        r'<div class="sys-seal"[^>]*>.*?<span class="sys-seal-char">(.*?)</span>.*?</div>\s*<div class="sys-text">(.*?)</div>',
+        html,
+        re.S,
+    )
+    assert seal_match, "sys-seal 和 sys-text 应并列渲染"
+    assert seal_match.group(1).strip() == "粮"
+    assert seal_match.group(2).strip() == text
 
 
 def test_ink_sys_seal_uses_first_char():

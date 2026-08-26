@@ -6,8 +6,24 @@ services:
     container_name: dialogue-theater
     ports:
       - "8000:8000"
+    # TTS GPU 加速(2025-Q3):用 nvidia runtime 透传宿主 GPU 给容器。
+    # 宿主需装 NVIDIA 驱动 + WSL2 + Docker Desktop 启用 WSL2 backend;
+    # nvidia-container-toolkit 已通过 Docker Desktop 预装。
+    # 若未装 toolkit 把这一行改成注释,兑底 TTS_DEVICE=cpu。
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     volumes:
       - ./storage:/app/storage      # 持久化上传与产物
+      # TTS 模型目录(2025-Q3):宿主 D:\model\modelscope → 容器 /d/model/modelscope → 容器内 /app/tts-models。
+      # 配合 .env 里 TTS_MODEL_PATH=/app/tts-models/Qwen3-TTS-12Hz-1.7B-CustomVoice。
+      # GPU 模式还需部署 nvidia-container-toolkit + Dockerfile 里装 CUDA 版 torch。
+      - /d/model/modelscope:/app/tts-models:ro
     environment:
       - WORKER_COUNT=${WORKER_COUNT:-2}
       - LOG_LEVEL=${LOG_LEVEL:-info}
@@ -24,6 +40,16 @@ services:
       - AI_TEMPERATURE=${AI_TEMPERATURE:-0.8}
       - AI_DAILY_LIMIT=${AI_DAILY_LIMIT:-50}
       - AI_TIMEOUT_SECONDS=${AI_TIMEOUT_SECONDS:-60}
+      # TTS 多角色对话合成(2025-Q3,见 docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md)。
+      # TTS_MODEL_PATH 必须在 .env 里指向本地模型绝对路径,Docker 内需 mount 进容器(见 volumes)。
+      - TTS_ENABLED=${TTS_ENABLED:-true}
+      - TTS_MODEL_PATH=${TTS_MODEL_PATH:-}
+      - TTS_DEVICE=${TTS_DEVICE:-cuda:0}
+      - TTS_DTYPE=${TTS_DTYPE:-bfloat16}
+      - TTS_TARGET_SR=${TTS_TARGET_SR:-24000}
+      - TTS_VOICE_CONFIG=${TTS_VOICE_CONFIG:-backend/config/tts_voices.json}
+      - TTS_LANGUAGE=${TTS_LANGUAGE:-Chinese}
+      - TTS_INFERENCE_TIMEOUT_S=${TTS_INFERENCE_TIMEOUT_S:-120}
     restart: unless-stopped
 
   frontend:

@@ -7,6 +7,14 @@
 - /api/sessions 系列:建 / 查 / 列 / 删 session,删时连带清掉该 session 的素材和产物。
 - /api/upload 必填 session_id,文件落在 storage/users/{user_id}/sessions/{session_id}/uploads/。
 - /api/render 必填 session_id,job 落入 jobs 表,产物落在 outputs/。
+
+新增(TTS,2025-Q3):
+- /api/tts/import-asr:上传 ASR JSON + 解析 + 预览一次返回,落 files 表 kind="asr"。
+- /api/tts:提交一次多角色对话合成任务,kind="tts",产物 wav 落 outputs/。
+- /api/tts/voices(调试):返回 TTS_VOICE_CONFIG 内容 + model.get_supported_speakers()
+  实际查询结果;模型没加载就 503。
+- /api/jobs/{job_id} 在 status=done 时透出 kind/metadata_json/output_ext 字段,
+  TTS 任务的 wav 通过既有 /api/jobs/{job_id}/output 输出(mime=audio/wav)。
 """
 
 from __future__ import annotations
@@ -17,12 +25,12 @@ import logging
 import os
 import uuid
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from app import ai_service, db, queue
+from app import ai_service, db, queue, tts_service
 from app.auth import (
     SESSION_COOKIE_MAX_AGE,
     SESSION_COOKIE_NAME,
@@ -33,16 +41,21 @@ from app.dsl import VideoDSL
 from app.models import (
     CreateSessionRequest,
     FileInfo,
+    FirstSegmentPreview,
     JobStatus,
     JobSummary,
     SessionDetail,
     SessionInfo,
+    TtsFromJobRequest,
+    TtsImportPreview,
+    TtsSubmitRequest,
     UserInfo,
 )
 from app import importer
 from app.renderer import render_dsl
 from app.storage import (
     ALLOWED_MIME,
+    EXT_AUDIO_WAV,
     MAX_UPLOAD_SIZE,
     OUTPUT_EXT,
     OUTPUT_MIME,
@@ -451,6 +464,292 @@ async def ai_continue_dialogue(
     )
 
 
+# ---------- TTS 多角色对话合成(2025-Q3) ----------
+
+
+@app.post("/api/tts/import-asr", response_model=TtsImportPreview)
+async def import_asr(
+    file: UploadFile = File(...),
+    session_id: str = Form(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """上传 + 解析 + 预览一次返回。
+
+    复用 storage.save_upload_bytes + db.insert_file 落盘入库,kind="asr" 区别于
+    通用素材(avatar/image/background)。ASR JSON 不是 DSL 引用资源,只是 TTS 任务
+    的输入参数,所以这里不复用 /api/upload 的 kind 白名单。
+
+    失败:
+      - 文件超过 MAX_UPLOAD_SIZE → 413
+      - JSON 解析失败 / 结构不合法 → 400 + {"code": "bad_asr", ...}
+      - session 不存在或不属于当前用户 → 404
+    """
+    sess = await asyncio.to_thread(db.get_session, session_id)
+    if sess is None or sess["user_id"] != user.id:
+        raise HTTPException(404, "session not found")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "empty file")
+    if len(data) > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            413, f"file exceeds {MAX_UPLOAD_SIZE // (1024 * 1024)}MB limit"
+        )
+
+    try:
+        parsed_raw = json.loads(data.decode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(400, f"not valid JSON: {exc}")
+
+    try:
+        preview = tts_service.parse_asr_json(parsed_raw)
+    except tts_service.AsrParseError as exc:
+        raise HTTPException(400, {"code": "bad_asr", "reason": str(exc)})
+
+    # 落盘 + 入库(不复用 /api/upload,因为 kind="asr" 不在它白名单里)
+    file_id, _, _, _ = await asyncio.to_thread(
+        save_upload_bytes,
+        user.id,
+        session_id,
+        data,
+        "json",
+        "asr",
+        content_type="application/json",
+    )
+    row = await db.insert_file_async(
+        file_id=file_id,
+        session_id=session_id,
+        user_id=user.id,
+        kind="asr",
+        ext="json",
+        size=len(data),
+        content_type="application/json",
+    )
+    await db.touch_session_async(session_id)
+    logger.info(
+        "TTS import-asr user=%s session=%s file=%s segments=%d",
+        user.id, session_id, file_id, preview["segments_count"],
+    )
+
+    first = preview["first_segment_preview"]
+    return TtsImportPreview(
+        file_id=file_id,
+        url=f"/api/files/{file_id}",
+        segments_count=preview["segments_count"],
+        total_duration_ms=preview["total_duration_ms"],
+        speakers=preview["speakers"],
+        speaker_segments=preview["speaker_segments"],
+        first_segment_preview=(
+            FirstSegmentPreview(**first) if first else None
+        ),
+    )
+
+
+@app.post("/api/tts", status_code=202)
+async def submit_tts(
+    body: TtsSubmitRequest,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """提交一次多角色对话合成任务。返回 { job_id, status: "queued" }。
+
+    校验链(顺序故意调过):
+      1. session 所有权 → 否则 404(用户传错 session_id 必须先暴露这个问题);
+      2. asr_file_id 所有权 + kind == "asr" → 否则 404 / 400;
+      3. TTS_ENABLED / TTS_MODEL_PATH → 否则 503;
+      4. 入队 jobs 表(kind="tts", output_ext="wav"),config_json 落整个 body 序列化结果。
+
+    如果先做 TTS 可用性检查,用户传错 session_id 会被吞成 503,运维和前端都要多走
+    一圈才能定位问题。
+    """
+    # 1. session 所有权
+    sess = await asyncio.to_thread(db.get_session, body.session_id)
+    if sess is None or sess["user_id"] != user.id:
+        raise HTTPException(404, "session not found")
+
+    # 2. asr_file_id 所有权 + 类型
+    asr_row = await asyncio.to_thread(db.get_file, body.asr_file_id)
+    if asr_row is None or asr_row["user_id"] != user.id or asr_row["session_id"] != body.session_id:
+        raise HTTPException(404, "ASR file not found")
+    if asr_row.get("kind") != "asr":
+        raise HTTPException(
+            400, f"file kind must be 'asr', got {asr_row.get('kind')!r}"
+        )
+
+    # 3. TTS 可用性(放到 session / file 校验之后)
+    if not tts_service.TTS_ENABLED:
+        raise HTTPException(503, "TTS is disabled (set TTS_ENABLED=true)")
+    if not tts_service.TTS_MODEL_PATH and not body.model_path:
+        raise HTTPException(
+            503,
+            "TTS_MODEL_PATH not configured; set it in env or pass model_path",
+        )
+
+    # 4. 入队;config_json = 整个 body dump,worker 端不再读请求体
+    config = body.model_dump(mode="json")
+    try:
+        job_id = await queue.enqueue_tts(
+            tts_config=config,
+            session_id=body.session_id,
+            user_id=user.id,
+        )
+    except queue.QueueFullError:
+        raise HTTPException(503, "queue is full, please try again later")
+
+    logger.info(
+        "TTS submit user=%s session=%s asr=%s job=%s",
+        user.id, body.session_id, body.asr_file_id, job_id,
+    )
+    return {"job_id": job_id, "status": "queued"}
+
+
+@app.get("/api/tts/voices")
+async def tts_voices(user: CurrentUser = Depends(get_current_user)):
+    """调试端点:返回当前 TTS_VOICE_CONFIG + model.get_supported_speakers() 实际查询结果。
+
+    模型没加载就 503(避免无脑触发一次 1-2 分钟的 GPU 加载):
+      - TTS_ENABLED=false → 503
+      - TTS_MODEL_PATH 与 per-task model_path 都为空 → 503
+      - get_supported_speakers 抛 RuntimeError → 503 + reason
+    """
+    if not tts_service.TTS_ENABLED:
+        raise HTTPException(503, "TTS is disabled")
+    if not tts_service.TTS_MODEL_PATH:
+        # /api/tts/voices 不接受 per-task override,所以只看 env
+        raise HTTPException(503, "TTS_MODEL_PATH not configured")
+    try:
+        speakers = await tts_service.get_supported_speakers()
+    except RuntimeError as exc:
+        raise HTTPException(503, f"TTS model unavailable: {exc}")
+    return {
+        "config": tts_service.get_voice_config(),
+        "available_speakers": speakers,
+    }
+
+
+@app.post("/api/tts/from-job", status_code=202)
+async def submit_tts_from_job(
+    body: TtsFromJobRequest = Body(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """从已渲染视频任务派生 ASR → 入队 TTS 任务。
+
+    用途:时间码页「生成语音」按钮 — 用户不必再手填 ASR JSON,
+    后端从 render 任务的 config_json 里抽对话文本直接合成。
+
+    校验链(跟 submit_tts 对齐):
+      1. source job 存在 + user 所有权 + kind="render" → 否则 404;
+         (kind 不对也按 404 处理,不暴露存在性)
+      2. source job.status == "done" → 否则 409;
+         (status 提前到 TTS 可用性之前 — 任务未完成是用户问题,
+          TTS 没配是环境问题,两者语义不同,先报用户面问题更直观)
+      3. TTS_ENABLED / TTS_MODEL_PATH → 否则 503;
+      4. build_asr_from_dsl 解析失败 → 400(DSL 损坏 / 空消息);
+      5. ASR JSON 落盘(save_upload_bytes,ext="json")+ db.insert_file(kind="asr");
+      6. 入队 tts 任务,config_json 塞 {"asr_file_id", "source_job_id",
+         "role_map": {}, "instructs": {}};
+      7. 返回 { "tts_job_id": <新 job_id>, "status": "queued" }。
+    """
+    # 1. source job 校验
+    src = await db.get_job_async(body.job_id)
+    if src is None or src["user_id"] != user.id or src.get("kind", "render") != "render":
+        raise HTTPException(404, "video job not found")
+
+    # 2. source job 必须 done(用户面问题,先于 TTS 环境检查)
+    if src["status"] != "done":
+        raise HTTPException(409, f"video job not finished (status={src['status']})")
+
+    # 3. TTS 可用性
+    if not tts_service.TTS_ENABLED:
+        raise HTTPException(503, "TTS is disabled (set TTS_ENABLED=true)")
+    if not tts_service.TTS_MODEL_PATH:
+        raise HTTPException(503, "TTS_MODEL_PATH not configured")
+
+    # 4. build ASR + 兜底解析校验(parse_asr_json 抛错就 400)
+    try:
+        dsl = VideoDSL.model_validate(src["config"])
+        asr_payload = tts_service.build_asr_from_dsl(dsl)
+        tts_service.parse_asr_json(asr_payload)  # 校验结构
+    except tts_service.AsrParseError as exc:
+        raise HTTPException(400, {"code": "bad_asr", "reason": str(exc)})
+    except Exception as exc:  # noqa: BLE001 — VideoDSL 解析错也算 400
+        raise HTTPException(400, f"failed to derive ASR from DSL: {exc}")
+
+    # 5. ASR JSON 落盘 + 入库
+    asr_bytes = json.dumps(asr_payload, ensure_ascii=False).encode()
+    file_id, _, _, _ = await asyncio.to_thread(
+        save_upload_bytes,
+        user.id,
+        src["session_id"],
+        asr_bytes,
+        "json",
+        "asr",
+        content_type="application/json",
+    )
+    await db.insert_file_async(
+        file_id=file_id,
+        session_id=src["session_id"],
+        user_id=user.id,
+        kind="asr",
+        ext="json",
+        size=len(asr_bytes),
+        content_type="application/json",
+    )
+
+    # 6. 入队(per-task role_map/instructs 留空,沿用全局默认)
+    tts_config = {
+        "asr_file_id": file_id,
+        "source_job_id": body.job_id,
+        "role_map": {},
+        "instructs": {},
+    }
+    try:
+        tts_job_id = await queue.enqueue_tts(
+            tts_config=tts_config,
+            session_id=src["session_id"],
+            user_id=user.id,
+        )
+    except queue.QueueFullError:
+        raise HTTPException(503, "queue is full, please try again later")
+
+    logger.info(
+        "TTS from-job: user=%s render=%s asr=%s tts=%s",
+        user.id, body.job_id, file_id, tts_job_id,
+    )
+    return {"tts_job_id": tts_job_id, "status": "queued"}
+
+
+@app.get("/api/tts/by-source/{job_id}")
+async def tts_by_source_job(
+    job_id: str,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """时间码页持久化查询:返回该 render job 最近一个 TTS 子任务的状态。
+
+    契约:
+      - 找到 → 200 + body(含 tts_job_id / status / progress / output_url /
+        error / metadata_json);
+      - 没找到 → 200 + body=None(不是 404;前端据此判断是否要显示「生成语音」按钮)。
+
+    实现走 db.find_latest_tts_by_source:jobs 表里 kind="tts" AND
+    user_id=user.id AND config_json LIKE '%"source_job_id":"<job_id>"%' →
+    ORDER BY created_at DESC LIMIT 1。
+    """
+    row = await asyncio.to_thread(db.find_latest_tts_by_source, user.id, job_id)
+    if row is None:
+        return None
+    out_url: str | None = None
+    if row["status"] == "done":
+        out_url = f"/api/jobs/{row['id']}/output"
+    return {
+        "tts_job_id": row["id"],
+        "status": row["status"],
+        "progress": row["progress"],
+        "output_url": out_url,
+        "error": row.get("error"),
+        "metadata_json": row.get("metadata_json"),
+    }
+
+
 # ---------- 文件 / 产物访问(带所有权校验) ----------
 
 @app.get("/api/files/{file_id}")
@@ -483,7 +782,8 @@ async def serve_output(
     if not p.is_file():
         raise HTTPException(404, "output missing on disk")
     # 透明背景产物走 video/webm (VP9+alpha) 或 video/quicktime (ProRes 4444);
-    # 旧 mp4 任务保持 video/mp4。
+    # 旧 mp4 任务保持 video/mp4;TTS 任务(2025-Q3)走 audio/wav 触发浏览器 <audio> 播放。
+    # ext 白名单由 db.insert_job 强制(mp4/webm/mov/wav),这里不需要再校验。
     media_type = OUTPUT_MIME.get(ext, "application/octet-stream")
     return FileResponse(p, media_type=media_type, filename=f"{row['id']}.{ext}")
 

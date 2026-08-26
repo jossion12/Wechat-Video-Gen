@@ -151,13 +151,14 @@
 
   .sys-msg {
     align-self: center;
-    display: flex; align-items: center; justify-content: center;
+    max-width: 86%;
+    display: flex; align-items: center; justify-content: center; gap: 24px;
     opacity: 0; transform: translateY(20px) scale(0.96);
     transition: opacity .5s ease-out, transform .5s ease-out;
   }
   .sys-msg.show { opacity: 1; transform: translateY(0) scale(1); }
   .sys-seal {
-    width: 80px; height: 80px;
+    width: 80px; height: 80px; flex: none;
     border: 3px solid var(--seal-red); background: transparent;
     display: flex; align-items: center; justify-content: center;
     transform: rotate(-5deg);
@@ -166,6 +167,13 @@
   .sys-seal-char {
     font-family: "STKaiti", "KaiTi", "楷体", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
     font-size: 48px; font-weight: 700; color: var(--seal-red);
+  }
+  .sys-text {
+    flex: 1 1 auto; min-width: 0;
+    font-family: "STKaiti", "KaiTi", "楷体", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
+    font-size: 36px; line-height: 1.55;
+    color: var(--ink-deep); letter-spacing: 2px;
+    text-align: center; word-break: break-word; white-space: pre-wrap;
   }
 
   /* ---- 消息行 ---- */
@@ -406,6 +414,7 @@
         {% if m.kind == 'sys' %}
           <div class="sys-msg" id="{{ m.dom_id }}">
             <div class="sys-seal"><span class="sys-seal-char">{{ m.seal_char }}</span></div>
+            <div class="sys-text">{{ m.text }}</div>
           </div>
         {% elif m.kind == 'timestamp' %}
           <div class="time-stamp" id="{{ m.dom_id }}">{{ m.text }}</div>

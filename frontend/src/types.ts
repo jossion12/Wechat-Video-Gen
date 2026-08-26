@@ -17,7 +17,8 @@ export type AIBadgeStyle = 'neon' | 'minimal' | 'retro';
 export type TransparentFormat = 'webm_vp9_alpha' | 'mov_prores4444';
 
 // 服务端写入 jobs.output_ext 的可能取值,前端用它决定下载按钮文案 / 文件名后缀。
-export type OutputExt = 'mp4' | 'webm' | 'mov';
+// 'wav' 是 TTS 多角色对话合成(2025-Q3)的产物扩展名,见 backend/app/tts_service.py。
+export type OutputExt = 'mp4' | 'webm' | 'mov' | 'wav';
 
 export const INTENT_LABELS: Record<Intent, string> = {
   short_video_drama: '短视频剧情创作',
@@ -53,6 +54,7 @@ export const OUTPUT_EXT_LABELS: Record<OutputExt, string> = {
   mp4: 'MP4 (H.264)',
   webm: 'WebM (VP9+Alpha)',
   mov: 'MOV (ProRes 4444)',
+  wav: 'WAV (24kHz 单声道)',
 };
 
 /** 各主题首次启用时的推荐背景色。 */
@@ -134,7 +136,24 @@ export interface JobStatusResponse {
   output_ext: OutputExt | null;
   // 时间码 JSON 链接(见 docs/03-api.md §3.x 时间码导出):
   // 仅 done 且 timeline.json 存在时有值,前端据此显示「查看时间码」按钮。
+  // TTS 任务没有 timeline.json → null。
   timeline_url: string | null;
+  // 任务类型(2025-Q3 引入):'render'(视频) / 'tts'(语音合成)。
+  // 前端按 kind 路由下载/播放 UI;老 job 默认 'render'。
+  kind: 'render' | 'tts';
+  // TTS 单段失败明细(见 docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md):
+  // 仅 kind="tts" 的 done 任务里可能非空;render 任务与未跑完的任务里都是 null。
+  // 失败不阻塞整体任务,该段回退静音。
+  metadata_json: { failed_segments?: TtsFailedSegment[] } | null;
+}
+
+/** TTS 单段失败明细项 —— 与后端 tts_service.synthesize 写入的 failed_segments 一一对应。 */
+export interface TtsFailedSegment {
+  idx: number;
+  speaker_id: string;
+  speaker: string;
+  text: string;
+  reason: string;
 }
 
 /** Event payload pushed through the SSE stream. */
@@ -147,6 +166,20 @@ export interface RenderJobEvent {
   output_ext?: OutputExt | null;
   // done 事件里也会带 timeline_url;前端无需再额外 GET 一次 job 状态就能展示按钮。
   timeline_url?: string | null;
+  // 任务类型(2025-Q3);老 job 事件流里这个字段是 undefined,前端按 'render' 兜底。
+  kind?: 'render' | 'tts';
+  // TTS done 事件里带的失败明细(其它时刻为 undefined)。
+  metadata_json?: { failed_segments?: TtsFailedSegment[] } | null;
+}
+
+/** GET /api/tts/by-source/{job_id} 响应(2025-Q3 引入)。 */
+export interface TtsBySourceResponse {
+  tts_job_id: string;
+  status: JobStatus;
+  progress: number;
+  output_url: string | null;
+  error: string | null;
+  metadata_json: { failed_segments?: TtsFailedSegment[] } | null;
 }
 
 // ---------- 时间码 JSON(见 docs/03-api.md §3.x 时间码导出) ----------
@@ -216,6 +249,10 @@ export interface JobSummary {
   finished_at: number | null;
   output_ext: OutputExt | null;
   timeline_url: string | null;
+  // 任务类型(2025-Q3):'render'(视频) / 'tts'(语音合成);老 job 默认 'render'。
+  kind?: 'render' | 'tts';
+  // TTS 单段失败明细(与 JobStatusResponse.metadata_json 同语义)。
+  metadata_json?: { failed_segments?: TtsFailedSegment[] } | null;
 }
 
 export interface SessionInfo {

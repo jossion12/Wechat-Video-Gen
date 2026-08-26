@@ -127,6 +127,17 @@ def _cursor() -> Iterator[sqlite3.Cursor]:
             conn.close()
 
 
+def _parse_metadata_json(value: str | None) -> dict | None:
+    """把 jobs.metadata_json TEXT 列解成 dict;空 / 损坏时返回 None。"""
+    if not value:
+        return None
+    try:
+        loaded = json.loads(value)
+    except (TypeError, ValueError):
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
 def _ensure_columns(conn: sqlite3.Connection) -> None:
     """向后兼容:对已有表追加后续版本新增的列。
 
@@ -155,6 +166,16 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
         if "output_ext" not in cols:
             conn.execute(
                 "ALTER TABLE jobs ADD COLUMN output_ext TEXT NOT NULL DEFAULT 'mp4'"
+            )
+        # kind / metadata_json 是 TTS pipeline 引入的(2025-Q3)。
+        # 旧 job 落 'render' + NULL,跟 output_ext 一样的 NOT NULL DEFAULT 兼容迁移。
+        if "kind" not in cols:
+            conn.execute(
+                "ALTER TABLE jobs ADD COLUMN kind TEXT NOT NULL DEFAULT 'render'"
+            )
+        if "metadata_json" not in cols:
+            conn.execute(
+                "ALTER TABLE jobs ADD COLUMN metadata_json TEXT"
             )
 
 
@@ -415,21 +436,29 @@ def insert_job(
     user_id: str,
     config: dict,
     output_ext: str = "mp4",
+    *,
+    kind: str = "render",
+    metadata_json: str | None = None,
 ) -> dict:
     now = time.time()
-    if output_ext not in ("mp4", "webm", "mov"):
+    if output_ext not in ("mp4", "webm", "mov", "wav"):
         # 兜底:未知扩展名拒绝入库,避免后续 serve_output 取到非法路径。
         raise ValueError(f"unsupported output_ext: {output_ext!r}")
+    if kind not in ("render", "tts"):
+        raise ValueError(f"unsupported job kind: {kind!r}")
     with _cursor() as cur:
         cur.execute(
-            "INSERT INTO jobs(id, session_id, user_id, status, progress, config_json, output_ext, created_at) "
-            "VALUES (?, ?, ?, 'queued', 0, ?, ?, ?)",
+            "INSERT INTO jobs(id, session_id, user_id, status, progress, config_json, "
+            "output_ext, kind, metadata_json, created_at) "
+            "VALUES (?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?)",
             (
                 job_id,
                 session_id,
                 user_id,
                 json.dumps(config, ensure_ascii=False),
                 output_ext,
+                kind,
+                metadata_json,
                 now,
             ),
         )
@@ -441,6 +470,8 @@ def insert_job(
         "progress": 0,
         "config_json": config,
         "output_ext": output_ext,
+        "kind": kind,
+        "metadata_json": _parse_metadata_json(metadata_json),
         "error": None,
         "created_at": now,
         "finished_at": None,
@@ -454,7 +485,8 @@ async def insert_job_async(**kwargs: Any) -> dict:
 def get_job(job_id: str) -> dict | None:
     with _cursor() as cur:
         cur.execute(
-            "SELECT id, session_id, user_id, status, progress, config_json, output_ext, error, created_at, finished_at "
+            "SELECT id, session_id, user_id, status, progress, config_json, output_ext, "
+            "kind, metadata_json, error, created_at, finished_at "
             "FROM jobs WHERE id=?",
             (job_id,),
         )
@@ -467,6 +499,8 @@ def get_job(job_id: str) -> dict | None:
             d["config"] = json.loads(d.pop("config_json") or "{}")
         except Exception:  # noqa: BLE001 — 损坏的 JSON 也照常返回 row
             d["config"] = {}
+        # metadata_json 解码(dict);损坏 / 空值返回 None,与 INSERT 时一致。
+        d["metadata_json"] = _parse_metadata_json(d.pop("metadata_json"))
         return d
 
 
@@ -485,16 +519,40 @@ def update_job_status(job_id: str, status: str, progress: int | None = None) -> 
             )
 
 
-def finish_job(job_id: str, status: str, error: str | None = None) -> None:
+def finish_job(
+    job_id: str,
+    status: str,
+    error: str | None = None,
+    metadata_json: str | None = None,
+) -> None:
+    """完成任务落库。
+    
+    metadata_json 始终写入(可空字符串 / None 都允许),与 _ensure_columns 加的 TEXT 列对齐:
+      - TTS 任务 done 时会附带 {"failed_segments": [...]} 用于前端展示;
+      - render 任务 / failed 任务不传 → 写 NULL,不会覆盖之前的值(因为 finish_job
+        在 job 生命周期里只调一次)。
+    """
     with _cursor() as cur:
         cur.execute(
-            "UPDATE jobs SET status=?, progress=?, error=?, finished_at=? WHERE id=?",
-            (status, 100 if status == "done" else 0, error, time.time(), job_id),
+            "UPDATE jobs SET status=?, progress=?, error=?, metadata_json=?, finished_at=? WHERE id=?",
+            (
+                status,
+                100 if status == "done" else 0,
+                error,
+                metadata_json,
+                time.time(),
+                job_id,
+            ),
         )
 
 
-async def finish_job_async(job_id: str, status: str, error: str | None = None) -> None:
-    await asyncio.to_thread(finish_job, job_id, status, error)
+async def finish_job_async(
+    job_id: str,
+    status: str,
+    error: str | None = None,
+    metadata_json: str | None = None,
+) -> None:
+    await asyncio.to_thread(finish_job, job_id, status, error, metadata_json=metadata_json)
 
 
 async def update_job_status_async(
@@ -506,21 +564,29 @@ async def update_job_status_async(
 def list_session_jobs(session_id: str, limit: int = 50) -> list[dict]:
     with _cursor() as cur:
         cur.execute(
-            "SELECT id, session_id, user_id, status, progress, output_ext, error, created_at, finished_at "
+            "SELECT id, session_id, user_id, status, progress, output_ext, kind, "
+            "metadata_json, error, created_at, finished_at "
             "FROM jobs WHERE session_id=? ORDER BY created_at DESC LIMIT ?",
             (session_id, limit),
         )
-        return [dict(r) for r in cur.fetchall()]
+        rows = [dict(r) for r in cur.fetchall()]
+    for r in rows:
+        r["metadata_json"] = _parse_metadata_json(r.get("metadata_json"))
+    return rows
 
 
 def list_user_jobs(user_id: str, limit: int = 50) -> list[dict]:
     with _cursor() as cur:
         cur.execute(
-            "SELECT id, session_id, user_id, status, progress, output_ext, error, created_at, finished_at "
+            "SELECT id, session_id, user_id, status, progress, output_ext, kind, "
+            "metadata_json, error, created_at, finished_at "
             "FROM jobs WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
             (user_id, limit),
         )
-        return [dict(r) for r in cur.fetchall()]
+        rows = [dict(r) for r in cur.fetchall()]
+    for r in rows:
+        r["metadata_json"] = _parse_metadata_json(r.get("metadata_json"))
+    return rows
 
 
 def count_by_status(job_ids: Iterable[str]) -> dict[str, int]:
@@ -535,3 +601,41 @@ def count_by_status(job_ids: Iterable[str]) -> dict[str, int]:
             ids,
         )
         return {r["status"]: r["n"] for r in cur.fetchall()}
+
+
+def find_latest_tts_by_source(user_id: str, source_job_id: str) -> dict | None:
+    """查某 user 在 source_job_id 这个 render 任务上最近一个 TTS 子任务。
+
+    用于 GET /api/tts/by-source/{job_id}(时间码页持久化展示):
+    "用户进时间码页 → 后端查到上次的 TTS 状态 → 前端展示 done / 重试按钮"。
+
+    没装 SQLite JSON1,所以走 LIKE 字符串匹配。job_id 是 26 位 hex,
+    与其它 config_json 字段不会撞("source_job_id":"26hex" 是定长带引号 + 字段名,
+    误伤概率接近 0;性能靠 user_id+kind 双重命中 + created_at DESC 限定)。
+
+    注意:json.dumps 默认输出 `"key": "val"`(冒号后有空格),但 insert_job 写库
+    时不强制格式,新旧数据可能并存。这里同时匹配两种格式(紧凑 / 带空格),
+    保证前后兼容。
+    """
+    needle_compact = f'%"source_job_id":"{source_job_id}"%'
+    needle_spaced = f'%"source_job_id": "{source_job_id}"%'
+    with _cursor() as cur:
+        cur.execute(
+            "SELECT id, session_id, user_id, status, progress, config_json, output_ext, "
+            "kind, metadata_json, error, created_at, finished_at "
+            "FROM jobs "
+            "WHERE user_id=? AND kind='tts' "
+            "AND (config_json LIKE ? OR config_json LIKE ?) "
+            "ORDER BY created_at DESC LIMIT 1",
+            (user_id, needle_compact, needle_spaced),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        d = dict(row)
+        try:
+            d["config"] = json.loads(d.pop("config_json") or "{}")
+        except Exception:  # noqa: BLE001
+            d["config"] = {}
+        d["metadata_json"] = _parse_metadata_json(d.pop("metadata_json"))
+        return d

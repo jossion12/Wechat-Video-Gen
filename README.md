@@ -23,6 +23,9 @@
 - **时间码 JSON 导出**：每次渲染落地 `timeline.json`（disclaimer / intro / 每条消息的精确
   出现 / 消失时刻，毫秒），通过 `GET /api/jobs/{id}/timeline` 下载；前端时间码查看页支持按
   类型过滤 + 时间轴预览。透明 / 不透明两条产物线都支持
+- **TTS 多角色对话合成**：上传 ASR 多角色转录 JSON，本地 Qwen3-TTS 模型逐段合成
+  24kHz 单声道 WAV；单段失败回退静音并写 metadata，产物通过 `/api/jobs/{id}/output`
+  直接以 `audio/wav` mime 输出，浏览器 `<audio>` 可立即播放
 
 ## 快速开始（Docker）
 
@@ -83,6 +86,14 @@ npm run dev                       # http://localhost:5173，Vite 代理 /api →
 | `AI_TEMPERATURE` | `0.8` | 生成温度 |
 | `AI_DAILY_LIMIT` | `50` | 每用户每日 AI 调用额度（内存计数，重启清零） |
 | `AI_TIMEOUT_SECONDS` | `60` | AI 接口超时时间 |
+| `TTS_ENABLED` | `true` | TTS 全局开关；false 时 `/api/tts/*` 全 503 |
+| `TTS_MODEL_PATH` | — | 本地 Qwen3-TTS 模型绝对路径（必填）；未配置时 `/api/tts*` 503 |
+| `TTS_DEVICE` | `cuda:0` | 推理设备：`cuda:0` / `cpu`（显存不够时降 CPU） |
+| `TTS_DTYPE` | `bfloat16` | 模型精度：`bfloat16` / `float16` / `float32` |
+| `TTS_TARGET_SR` | `24000` | 输出采样率（Hz）；与 ASR 时间轴对齐建议 24000 |
+| `TTS_VOICE_CONFIG` | `backend/config/tts_voices.json` | 音色/角色/语气配置文件；不存在回退内置默认 + 警告 |
+| `TTS_LANGUAGE` | `Chinese` | 传给 Qwen3-TTS 的 language 参数 |
+| `TTS_INFERENCE_TIMEOUT_S` | `120` | 单段推理超时；超时回退静音 + 写 metadata |
 
 ## 多用户 / Session
 
@@ -137,6 +148,54 @@ curl -o out.mp4   -H 'X-User-Id: alice' http://localhost:8000/api/jobs/<job_id>/
 curl -o timeline.json -H 'X-User-Id: alice' http://localhost:8000/api/jobs/<job_id>/timeline   # 时间码 JSON
 ```
 
+## TTS 多角色对话合成
+
+把 ASR 转录出的多角色对话文本，丢给本地 Qwen3-TTS 模型，逐段合成 24kHz 单声道 WAV。完整
+方案见 [`docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md`](./docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md)。
+
+### 启用
+
+1. 下载 Qwen3-TTS 模型（建议 `Qwen3-TTS-12Hz-1.7B-CustomVoice`），把本地路径填进 `TTS_MODEL_PATH`
+2. 复制 `backend/config/tts_voices.json.example` 为 `backend/config/tts_voices.json`，
+   按需改 `default_speakers` / `default_instructs`；不复制也能跑，会回退到内置默认 + 日志警告
+3. （可选）`TTS_ENABLED=false` 一键关停整个 TTS 通道，所有 `/api/tts*` 端点返回 503
+
+### 端点
+
+```
+# 1) 上传 ASR JSON + 解析 + 预览一次返回,落 files 表 kind="asr"
+POST /api/tts/import-asr      form: session_id, file=<asr.json>
+  → { file_id, segments_count, total_duration_ms, speakers, speaker_segments,
+      first_segment_preview: {start_ms, end_ms, text} | null }
+
+# 2) 提交一次多角色对话合成任务,入队,返回 job_id
+POST /api/tts                  body: {
+  session_id, asr_file_id,
+  role_map?: {speaker_id→内置speaker},
+  instructs?: {speaker_id→语气文案},
+  model_path?, target_sr?, language?,
+}
+  → { job_id, status: "queued" }     # 202 Accepted
+
+# 3) 调试:查当前 voice_config + 模型实际支持的 speaker 列表
+GET  /api/tts/voices            (模型未加载 → 503)
+```
+
+### 产物
+
+- 落盘: `storage/users/{user_id}/sessions/{session_id}/outputs/{job_id}.wav`
+- 下载: `GET /api/jobs/{job_id}/output` → `audio/wav`,浏览器 `<audio>` 直接播
+- 任务状态: 复用 `/api/jobs/{job_id}` + `/api/jobs/{job_id}/events` (SSE),
+  done 事件里 `kind: "tts"` + `metadata_json: { failed_segments: [...] }`;
+  单段失败不阻塞整体任务,该段回退静音并写入 `failed_segments`,前端可据此展示降级提示
+
+### 范围(本期)
+
+- ✅ 独立 WAV 成品,逐段合成 + 单段失败回退 + 进度 SSE
+- ✅ CustomVoice 内置 speaker(6 个默认),per-task role_map / instructs 可覆盖
+- ❌ WAV 嵌入视频(后续再开第二个 pipeline 节点)
+- ❌ 用户级 voice profile 持久化 / VoiceDesign / VoiceClone
+
 ## 压缩包导入
 
 支持把 `dsl.json + 图片素材` 打包成 zip，通过 `POST /api/import` 一次性导入当前 session。后端会自动解压、校验、去重、改写 URL，返回改写后的 DSL。详见 [`examples/import/README.md`](./examples/import/README.md) 与 [`docs/08-import-package.md`](./docs/08-import-package.md)。
@@ -164,11 +223,12 @@ my-dialogue.zip
 ## 目录结构
 
 ```
-backend/          FastAPI 应用（models / dsl / renderer / recorder / queue / storage / ai_service / importer / auth / db）
+backend/          FastAPI 应用（models / dsl / renderer / recorder / queue / storage / ai_service / tts_service / importer / auth / db）
   app/            业务模块
+  config/         TTS 音色/角色/语气配置示例(tts_voices.json.example)
   templates/      原创风格 Jinja2 模板
   tests/          pytest 用例（主测试目录）
-  app/tests/      importer 单元测试
+  app/tests/      importer + TTS 单元测试
 frontend/         React + TS + Vite 前端
   src/            组件、API 封装、类型定义、校验逻辑
 deploy/           Dockerfile、nginx.conf

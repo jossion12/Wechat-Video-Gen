@@ -2352,3 +2352,99 @@ textarea {
 .timeline-kind-badge--emoji { background: #f59e0b; }
 .timeline-kind-badge--sys { background: var(--neon-pink); }
 .timeline-kind-badge--timestamp { background: #64748b; }
+
+/* ---------- TTS 语音合成卡片(见 docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md) ----------
+   嵌在 .timeline-card 内部,用虚线 border-top 与时间码表格分隔。
+   复用现有 .status-chip / .progress-track / .progress-fill / .btn,仅补少量布局/排版样式。 */
+
+.tts-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border);
+}
+
+.tts-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tts-section-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.tts-section-hint {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.tts-section-empty {
+  color: var(--text-2);
+  font-size: 13px;
+  margin: 0;
+}
+
+.tts-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tts-section-row > .tts-section-hint {
+  flex: 1;
+  min-width: 0;
+}
+
+.tts-section-stats {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 10px;
+}
+
+.tts-section-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tts-section-stat-label {
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.tts-section-stat-value {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.tts-section-audio {
+  display: block;
+  width: 100%;
+  margin: 8px 0 10px;
+}
+
+.tts-section-failed-reason {
+  color: var(--danger);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+/* running 阶段进度条 + jobId 副信息 */
+.tts-section-running .progress-track {
+  margin-bottom: 4px;
+}
+
+.tts-section-running .progress-percent {
+  text-align: right;
+  margin-top: 4px;
+}
+
+/* 失败态:reason 上方,按钮右下,与 idle 行结构对齐 */
+.tts-section-failed .tts-section-row > span {
+  flex: 1;
+}
