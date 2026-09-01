@@ -128,7 +128,12 @@ def _cursor() -> Iterator[sqlite3.Cursor]:
 
 
 def _parse_metadata_json(value: str | None) -> dict | None:
-    """把 jobs.metadata_json TEXT 列解成 dict;空 / 损坏时返回 None。"""
+    """⚠️ Qwen3-TTS 单段失败明细解码(已注释)⚠️
+
+    把 jobs.metadata_json TEXT 列解成 dict;空 / 损坏时返回 None。
+    当前版本(回退 Qwen3-TTS)此函数不再被调用 —— 见 db.get_job / list_*_jobs /
+    find_latest_tts_by_source 已注释对应解码逻辑 —— 保留作为工具函数以便恢复。
+    """
     if not value:
         return None
     try:
@@ -167,7 +172,9 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
             conn.execute(
                 "ALTER TABLE jobs ADD COLUMN output_ext TEXT NOT NULL DEFAULT 'mp4'"
             )
-        # kind / metadata_json 是 TTS pipeline 引入的(2025-Q3)。
+        # ⚠️ kind / metadata_json 是 TTS pipeline 引入的(2025-Q3,Qwen3-TTS)。
+        # 当前版本(回退 Qwen3-TTS)仍保留这两列:已迁移/已生产数据库里它们已经存在,
+        # 移除会导致迁移回退困难。下面两条 ALTER 在已存在列上 no-op,幂等安全。
         # 旧 job 落 'render' + NULL,跟 output_ext 一样的 NOT NULL DEFAULT 兼容迁移。
         if "kind" not in cols:
             conn.execute(
@@ -430,6 +437,7 @@ def delete_file(file_id: str) -> None:
 
 # ---------- jobs ----------
 
+
 def insert_job(
     job_id: str,
     session_id: str,
@@ -438,10 +446,19 @@ def insert_job(
     output_ext: str = "mp4",
     *,
     kind: str = "render",
-    metadata_json: str | None = None,
 ) -> dict:
+    """⚠️ metadata_json 参数(2025-Q3 引入,Qwen3-TTS)已注释 ⚠️
+
+    当前版本(回退 Qwen3-TTS)不再接受 metadata_json 参数。db 层仍保留 jobs 表的
+    metadata_json 列(由 _ensure_columns 自动迁移,无破坏性),但 insert 一律落
+    NULL,query 一律返回 None。
+    """
+    # 兜底:防止下游 restore 调用误传 metadata_json。
+    # if "metadata_json" in kwargs:  # noqa: E800 — Qwen3-TTS(已注释)
+    #     raise TypeError("metadata_json 参数已被注释(Qwen3-TTS,DISABLED);当前版本不接受。")
     now = time.time()
-    if output_ext not in ("mp4", "webm", "mov", "wav"):
+    if output_ext not in ("mp4", "webm", "mov"):
+        # ⚠️ "wav" 从白名单移除 —— Qwen3-TTS 产物的扩展名,当前版本注释。
         # 兜底:未知扩展名拒绝入库,避免后续 serve_output 取到非法路径。
         raise ValueError(f"unsupported output_ext: {output_ext!r}")
     if kind not in ("render", "tts"):
@@ -450,7 +467,7 @@ def insert_job(
         cur.execute(
             "INSERT INTO jobs(id, session_id, user_id, status, progress, config_json, "
             "output_ext, kind, metadata_json, created_at) "
-            "VALUES (?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, 'queued', 0, ?, ?, ?, NULL, ?)",
             (
                 job_id,
                 session_id,
@@ -458,7 +475,6 @@ def insert_job(
                 json.dumps(config, ensure_ascii=False),
                 output_ext,
                 kind,
-                metadata_json,
                 now,
             ),
         )
@@ -471,7 +487,7 @@ def insert_job(
         "config_json": config,
         "output_ext": output_ext,
         "kind": kind,
-        "metadata_json": _parse_metadata_json(metadata_json),
+        "metadata_json": None,  # ⚠️ Qwen3-TTS(已注释)—— 永远 None
         "error": None,
         "created_at": now,
         "finished_at": None,
@@ -499,8 +515,10 @@ def get_job(job_id: str) -> dict | None:
             d["config"] = json.loads(d.pop("config_json") or "{}")
         except Exception:  # noqa: BLE001 — 损坏的 JSON 也照常返回 row
             d["config"] = {}
-        # metadata_json 解码(dict);损坏 / 空值返回 None,与 INSERT 时一致。
-        d["metadata_json"] = _parse_metadata_json(d.pop("metadata_json"))
+        # ⚠️ metadata_json(Qwen3-TTS)当前版本不再解码,直接置 None。
+        # 旧数据库里可能仍有历史值,但已不再被前端/API 消费。
+        d.pop("metadata_json", None)
+        d["metadata_json"] = None
         return d
 
 
@@ -523,23 +541,20 @@ def finish_job(
     job_id: str,
     status: str,
     error: str | None = None,
-    metadata_json: str | None = None,
 ) -> None:
     """完成任务落库。
-    
-    metadata_json 始终写入(可空字符串 / None 都允许),与 _ensure_columns 加的 TEXT 列对齐:
-      - TTS 任务 done 时会附带 {"failed_segments": [...]} 用于前端展示;
-      - render 任务 / failed 任务不传 → 写 NULL,不会覆盖之前的值(因为 finish_job
-        在 job 生命周期里只调一次)。
+
+    ⚠️ metadata_json 参数(2025-Q3,Qwen3-TTS)已注释 ⚠️
+      原 2025-Q3 版本会在这里写入 {"failed_segments": [...]} 用于前端展示;
+      当前版本(回退 Qwen3-TTS)不再支持该字段,jobs.metadata_json 列保留但永远 NULL。
     """
     with _cursor() as cur:
         cur.execute(
-            "UPDATE jobs SET status=?, progress=?, error=?, metadata_json=?, finished_at=? WHERE id=?",
+            "UPDATE jobs SET status=?, progress=?, error=?, finished_at=? WHERE id=?",
             (
                 status,
                 100 if status == "done" else 0,
                 error,
-                metadata_json,
                 time.time(),
                 job_id,
             ),
@@ -550,9 +565,9 @@ async def finish_job_async(
     job_id: str,
     status: str,
     error: str | None = None,
-    metadata_json: str | None = None,
 ) -> None:
-    await asyncio.to_thread(finish_job, job_id, status, error, metadata_json=metadata_json)
+    # ⚠️ metadata_json 参数(Qwen3-TTS)已注释;旧调用方传参会被静默吞掉。
+    await asyncio.to_thread(finish_job, job_id, status, error)
 
 
 async def update_job_status_async(
@@ -571,7 +586,9 @@ def list_session_jobs(session_id: str, limit: int = 50) -> list[dict]:
         )
         rows = [dict(r) for r in cur.fetchall()]
     for r in rows:
-        r["metadata_json"] = _parse_metadata_json(r.get("metadata_json"))
+        # ⚠️ metadata_json(Qwen3-TTS)当前版本不再解码,统一置 None。
+        r.pop("metadata_json", None)
+        r["metadata_json"] = None
     return rows
 
 
@@ -585,7 +602,9 @@ def list_user_jobs(user_id: str, limit: int = 50) -> list[dict]:
         )
         rows = [dict(r) for r in cur.fetchall()]
     for r in rows:
-        r["metadata_json"] = _parse_metadata_json(r.get("metadata_json"))
+        # ⚠️ metadata_json(Qwen3-TTS)当前版本不再解码,统一置 None。
+        r.pop("metadata_json", None)
+        r["metadata_json"] = None
     return rows
 
 
@@ -604,10 +623,13 @@ def count_by_status(job_ids: Iterable[str]) -> dict[str, int]:
 
 
 def find_latest_tts_by_source(user_id: str, source_job_id: str) -> dict | None:
-    """查某 user 在 source_job_id 这个 render 任务上最近一个 TTS 子任务。
+    """⚠️ Qwen3-TTS 时间码页持久化查询(2025-Q3,DISABLED / DEPRECATED)⚠️
 
-    用于 GET /api/tts/by-source/{job_id}(时间码页持久化展示):
-    "用户进时间码页 → 后端查到上次的 TTS 状态 → 前端展示 done / 重试按钮"。
+    原用途:查某 user 在 source_job_id 这个 render 任务上最近一个 TTS 子任务
+    (用于 GET /api/tts/by-source/{job_id},前端时间码页持久化展示 TTS 状态)。
+    当前版本(回退 Qwen3-TTS)直接返回 None;调用方 main.submit_tts_by_source_job
+    也已注释(整个 /api/tts/by-source 端点都已 `if False:` 包裹),保留函数签名
+    以便恢复。
 
     没装 SQLite JSON1,所以走 LIKE 字符串匹配。job_id 是 26 位 hex,
     与其它 config_json 字段不会撞("source_job_id":"26hex" 是定长带引号 + 字段名,
@@ -617,6 +639,9 @@ def find_latest_tts_by_source(user_id: str, source_job_id: str) -> dict | None:
     时不强制格式,新旧数据可能并存。这里同时匹配两种格式(紧凑 / 带空格),
     保证前后兼容。
     """
+    # ⚠️ Qwen3-TTS 集成(2025-Q3,DISABLED / DEPRECATED):
+    # 当前版本直接返回 None,保留下方 SQL 供恢复。
+    return None
     needle_compact = f'%"source_job_id":"{source_job_id}"%'
     needle_spaced = f'%"source_job_id": "{source_job_id}"%'
     with _cursor() as cur:

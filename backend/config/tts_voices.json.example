@@ -1,5 +1,5 @@
 {
-  "_comment": "Qwen3-TTS 多角色对话合成的默认音色 / 语气映射 —— 复制为 tts_voices.json 后按需修改。TTS_VOICE_CONFIG 指向本文件;文件不存在时后端回退内置默认值并 logger.warning,不影响启动。available_speakers 只作 UI 提示,实际可用列表由 model.get_supported_speakers() 给出(/api/tts/voices 可查)。",
+  "_comment": "⚠️ DEPRECATED / DISABLED ⚠️ Qwen3-TTS 多角色对话合成的默认音色 / 语气映射 —— 当前版本(回退 Qwen3-TTS)此功能已关闭,/api/tts/* 端点已被 if False 注释(见 backend/app/main.py),本文件暂时保留为占位 + 恢复参考。复制为 tts_voices.json 后按需修改。TTS_VOICE_CONFIG 指向本文件;文件不存在时后端回退内置默认值并 logger.warning,不影响启动。available_speakers 只作 UI 提示,实际可用列表由 model.get_supported_speakers() 给出(/api/tts/voices 可查)。",
 
   "default_speakers": {
     "laoyan": "Ryan",

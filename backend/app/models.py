@@ -175,10 +175,12 @@ class JobStatus(BaseModel):
     kind: str = "render"
     # 实际产物扩展名(由 db.jobs.output_ext 透出);前端在 done 事件里用来选播放器。
     output_ext: str | None = None
-    # TTS 单段失败明细(见 docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md):
-    # 仅 kind="tts" 的 done 任务里可能非空,dict 内通常含 {"failed_segments": [...]};
-    # render 任务与未跑完的 tts 任务里都是 None。error 字段留给致命错误。
-    metadata_json: dict | None = None
+    # ⚠️ TTS 单段失败明细 —— Qwen3-TTS 多角色对话合成(DISABLED / DEPRECATED)⚠️
+    # 见 docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md。当前版本下述字段不再使用,
+    # 注释保留以便恢复 Qwen3-TTS 集成。前端 / API 不再返回该字段,迁移期间旧 job
+    # 数据库里的 NULL/旧值会随 db 层 _parse_metadata_json 一起保留,不被删除。
+    # metadata_json: dict | None = None  # noqa: E800 — Qwen3-TTS 字段(已注释)
+
 
 
 # ---------- 多用户 / session 相关(新增) ----------
@@ -258,60 +260,69 @@ class JobSummary(BaseModel):
 SessionDetail.model_rebuild()
 
 
-# ---------- TTS 多角色对话合成(2025-Q3 引入) ----------
+# ============================================================================
+#  ⚠️ TTS 多角色对话合成(2025-Q3 引入,DISABLED / DEPRECATED)⚠️
+# ----------------------------------------------------------------------------
+# 当前版本(回退 Qwen3-TTS)所有 TTS 专用 Pydantic 模型用 `if False:` 包裹,
+# 不再被 Pydantic 注册、不再被 main.py 引用(下方 main.py 的 import 也对应
+# 注释)。后续恢复 Qwen3-TTS 集成时,把 `if False:` 改成 `if True:` 并在
+# main.py 取消对应 from app.models import ... 行注释即可。
+# ============================================================================
+
+if False:  # noqa: E800 — Qwen3-TTS 模型块(已禁用)
 
 
-class FirstSegmentPreview(BaseModel):
-    """ASR JSON 解析后给前端做预览用的首条非系统消息摘要。"""
+    class FirstSegmentPreview(BaseModel):
+        """ASR JSON 解析后给前端做预览用的首条非系统消息摘要。"""
 
-    start_ms: int
-    end_ms: int
-    text: str
-
-
-class TtsImportPreview(BaseModel):
-    """POST /api/tts/import-asr 响应:上传 + 解析 + 预览一次返回。
-
-    前端拿到这个直接画预览页(总时长 / 角色数 / 各角色段数 / 首条台词),
-    用户确认后再 POST /api/tts 真正入队。
-    """
-
-    file_id: str
-    url: str  # /api/files/{file_id},前端可以直接 <audio> 引用
-    segments_count: int
-    total_duration_ms: int
-    speakers: list[str]  # 唯一 speaker_id 列表(已剔除 __system__)
-    speaker_segments: dict[str, int]  # speaker_id → 该角色段数
-    first_segment_preview: FirstSegmentPreview | None = None
+        start_ms: int
+        end_ms: int
+        text: str
 
 
-class TtsSubmitRequest(BaseModel):
-    """POST /api/tts 请求体:提交一次多角色对话合成任务。
+    class TtsImportPreview(BaseModel):
+        """POST /api/tts/import-asr 响应:上传 + 解析 + 预览一次返回。
 
-    所有字段除 session_id / asr_file_id 外都可空:
-      - 缺省 role_map / instructs → 用 backend/config/tts_voices.json(或内置默认);
-      - 缺省 model_path → 用 TTS_MODEL_PATH 环境变量;
-      - 缺省 target_sr / language → 用对应 env 默认。
-    config_json 会把整个 body dump 后入 jobs 表,worker 端不再读请求体。
-    """
+        前端拿到这个直接画预览页(总时长 / 角色数 / 各角色段数 / 首条台词),
+        用户确认后再 POST /api/tts 真正入队。
+        """
 
-    session_id: str
-    asr_file_id: str
-    role_map: dict[str, str] | None = None
-    instructs: dict[str, str] | None = None
-    model_path: str | None = None
-    target_sr: int | None = None
-    language: str | None = None
+        file_id: str
+        url: str  # /api/files/{file_id},前端可以直接 <audio> 引用
+        segments_count: int
+        total_duration_ms: int
+        speakers: list[str]  # 唯一 speaker_id 列表(已剔除 __system__)
+        speaker_segments: dict[str, int]  # speaker_id → 该角色段数
+        first_segment_preview: FirstSegmentPreview | None = None
 
 
-class TtsFromJobRequest(BaseModel):
-    """POST /api/tts/from-job 请求体:从已渲染视频任务派生 ASR → 入队 TTS 任务。
+    class TtsSubmitRequest(BaseModel):
+        """POST /api/tts 请求体:提交一次多角色对话合成任务。
 
-    后端拿到 source job_id 后:
-      1) 校验存在 + user 所有权 + kind="render" + status="done"
-      2) build_asr_from_dsl(config) → 落盘为 kind="asr" 的 files 行
-      3) 入队 tts 任务,config_json 里塞 {"asr_file_id", "source_job_id",
-         "role_map": {}, "instructs": {}}
-    """
+        所有字段除 session_id / asr_file_id 外都可空:
+          - 缺省 role_map / instructs → 用 backend/config/tts_voices.json(或内置默认);
+          - 缺省 model_path → 用 TTS_MODEL_PATH 环境变量;
+          - 缺省 target_sr / language → 用对应 env 默认。
+        config_json 会把整个 body dump 后入 jobs 表,worker 端不再读请求体。
+        """
 
-    job_id: str
+        session_id: str
+        asr_file_id: str
+        role_map: dict[str, str] | None = None
+        instructs: dict[str, str] | None = None
+        model_path: str | None = None
+        target_sr: int | None = None
+        language: str | None = None
+
+
+    class TtsFromJobRequest(BaseModel):
+        """POST /api/tts/from-job 请求体:从已渲染视频任务派生 ASR → 入队 TTS 任务。
+
+        后端拿到 source job_id 后:
+          1) 校验存在 + user 所有权 + kind="render" + status="done"
+          2) build_asr_from_dsl(config) → 落盘为 kind="asr" 的 files 行
+          3) 入队 tts 任务,config_json 里塞 {"asr_file_id", "source_job_id",
+             "role_map": {}, "instructs": {}}
+        """
+
+        job_id: str

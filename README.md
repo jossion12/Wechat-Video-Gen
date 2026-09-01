@@ -25,7 +25,10 @@
   类型过滤 + 时间轴预览。透明 / 不透明两条产物线都支持
 - **TTS 多角色对话合成**：上传 ASR 多角色转录 JSON，本地 Qwen3-TTS 模型逐段合成
   24kHz 单声道 WAV；单段失败回退静音并写 metadata，产物通过 `/api/jobs/{id}/output`
-  直接以 `audio/wav` mime 输出，浏览器 `<audio>` 可立即播放
+  直接以 `audio/wav` mime 输出，浏览器 `<audio>` 可立即播放  
+  ⚠️ **DEPRECATED / DISABLED**：当前版本（回退 Qwen3-TTS）此功能已关闭，`/api/tts/*` 端点
+  已被 `if False` 注释（见 `backend/app/main.py`），前端不再渲染 TTS 卡片；下方「TTS 多角色
+  对话合成」一节也用 `<!-- -->` 注释保留为文档/恢复参考。
 
 ## 快速开始（Docker）
 
@@ -86,6 +89,7 @@ npm run dev                       # http://localhost:5173，Vite 代理 /api →
 | `AI_TEMPERATURE` | `0.8` | 生成温度 |
 | `AI_DAILY_LIMIT` | `50` | 每用户每日 AI 调用额度（内存计数，重启清零） |
 | `AI_TIMEOUT_SECONDS` | `60` | AI 接口超时时间 |
+<!-- ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️ TTS_* 变量已注释
 | `TTS_ENABLED` | `true` | TTS 全局开关；false 时 `/api/tts/*` 全 503 |
 | `TTS_MODEL_PATH` | — | 本地 Qwen3-TTS 模型绝对路径（必填）；未配置时 `/api/tts*` 503 |
 | `TTS_DEVICE` | `cuda:0` | 推理设备：`cuda:0` / `cpu`（显存不够时降 CPU） |
@@ -94,6 +98,7 @@ npm run dev                       # http://localhost:5173，Vite 代理 /api →
 | `TTS_VOICE_CONFIG` | `backend/config/tts_voices.json` | 音色/角色/语气配置文件；不存在回退内置默认 + 警告 |
 | `TTS_LANGUAGE` | `Chinese` | 传给 Qwen3-TTS 的 language 参数 |
 | `TTS_INFERENCE_TIMEOUT_S` | `120` | 单段推理超时；超时回退静音 + 写 metadata |
+⚠️ Qwen3-TTS DISABLED end -->|
 
 ## 多用户 / Session
 
@@ -148,6 +153,7 @@ curl -o out.mp4   -H 'X-User-Id: alice' http://localhost:8000/api/jobs/<job_id>/
 curl -o timeline.json -H 'X-User-Id: alice' http://localhost:8000/api/jobs/<job_id>/timeline   # 时间码 JSON
 ```
 
+<!-- ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️ — 开起块注释
 ## TTS 多角色对话合成
 
 把 ASR 转录出的多角色对话文本，丢给本地 Qwen3-TTS 模型，逐段合成 24kHz 单声道 WAV。完整
@@ -195,6 +201,7 @@ GET  /api/tts/voices            (模型未加载 → 503)
 - ✅ CustomVoice 内置 speaker(6 个默认),per-task role_map / instructs 可覆盖
 - ❌ WAV 嵌入视频(后续再开第二个 pipeline 节点)
 - ❌ 用户级 voice profile 持久化 / VoiceDesign / VoiceClone
+⚠️ Qwen3-TTS DISABLED — 关闭块注释 -->
 
 ## 压缩包导入
 

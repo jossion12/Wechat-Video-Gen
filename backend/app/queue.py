@@ -16,9 +16,16 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 
-from app import db, recorder, tts_service
+from app import db, recorder
+# 注:原 2025-Q3 版本还会 `from app import tts_service` —— TTS 多角色对话合成。
+# 当前版本(回退 Qwen3-TTS)已注释掉,模块不导入即可。
+# from app import tts_service  # noqa: E800 — Qwen3-TTS(已注释)
 from app.dsl import VideoDSL
-from app.storage import EXT_AUDIO_WAV, timeline_path
+# EXT_AUDIO_WAV 原用于 TTS 多角色对话合成产物(wav),当前版本注释保留。
+from app.storage import (
+    timeline_path,
+    # EXT_AUDIO_WAV,  # noqa: E800 — Qwen3-TTS(已注释)
+)
 
 logger = logging.getLogger("queue")
 
@@ -77,29 +84,18 @@ async def enqueue(dsl: VideoDSL, session_id: str, user_id: str) -> str:
 
 
 async def enqueue_tts(tts_config: dict, session_id: str, user_id: str) -> str:
-    """入队一个 TTS 多角色对话合成任务(2025-Q3 新增)。
+    """⚠️ 入队一个 TTS 多角色对话合成任务(2025-Q3 新增,DISABLED / DEPRECATED)⚠️
 
+    当前版本(回退 Qwen3-TTS)本函数不再被 main.py 调用,直接 raise 兜底防止误用。
     与 enqueue() 平级:同一 asyncio.Queue、同一组 worker,
     _process_job 按 jobs.kind 分发到 tts_service.synthesize()。
+
+    见 docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md(已标 DEPRECATED)。
     """
-    if _queue.full():
-        raise QueueFullError("queue is full")
-    job_id = uuid.uuid4().hex[:26]
-    await db.insert_job_async(
-        job_id=job_id,
-        session_id=session_id,
-        user_id=user_id,
-        config=tts_config,
-        output_ext=EXT_AUDIO_WAV,
-        kind="tts",
+    raise NotImplementedError(
+        "enqueue_tts 已 DISABLED(DISABLED / DEPRECATED)。"
+        "回退 Qwen3-TTS 集成期间禁止调用,见 docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md。"
     )
-    await db.touch_session_async(session_id)
-    _queue.put_nowait(job_id)
-    logger.info(
-        "TTS job %s queued (user=%s session=%s asr_file_id=%s)",
-        job_id, user_id, session_id, tts_config.get("asr_file_id"),
-    )
-    return job_id
 
 
 async def get_job_status(job_id: str, user_id: str | None = None) -> dict | None:
@@ -114,7 +110,8 @@ async def get_job_status(job_id: str, user_id: str | None = None) -> dict | None
         out = job.get("output_url") or f"/api/jobs/{job['id']}/output"
         # timeline.json 与 mp4/webm/mov 一起在 recorder 里落地,disk 上存在才暴露 URL。
         # 老 job 没 timeline.json 时 timeline_url 留 None,前端按钮不显示,不影响下载。
-        # TTS 任务根本不会写 timeline.json,这里自然就是 None。
+        # ⚠️ TTS 任务曾有 timeline_url 路径的概念,2025-Q3 Qwen3-TTS 集成期间
+        # 不会写 timeline.json。当前版本(回退 Qwen3-TTS)此处语义照旧。
         tl = timeline_path(job["user_id"], job["session_id"], job["id"])
         timeline_url = (
             f"/api/jobs/{job['id']}/timeline" if tl.is_file() else None
@@ -135,12 +132,14 @@ async def get_job_status(job_id: str, user_id: str | None = None) -> dict | None
         # 前端在 ProgressPanel 拿不到时按 'mp4' 兜底,不破坏 UI。
         "output_ext": job.get("output_ext"),
         "timeline_url": timeline_url,
-        # TTS pipeline(2025-Q3)引入:前端按 kind 路由下载/播放 UI;老 job 走
+        # ⚠️ kind 字段(2025-Q3 引入,Qwen3-TTS pipeline):前端按 kind 路由下载/播放 UI;
+        # 当前版本仅在 db 层读出,渲染层只可能拿到 "render"。老 job 走
         # _ensure_columns 兼容迁移落 "render"。
         "kind": job.get("kind", "render"),
-        # TTS 单段失败明细:仅 kind="tts" 的 done 任务里非空;render 任务与
-        # 未跑完的 tts 任务里都是 None(db 层已 json.loads 过)。
-        "metadata_json": job.get("metadata_json"),
+        # ⚠️ TTS 单段失败明细 —— Qwen3-TTS(已注释):
+        # 仅 kind="tts" 的 done 任务里非空;当前版本(回退 Qwen3-TTS)此字段永远为 None,
+        # db 层仍保留 metadata_json 列以避免破坏已迁移数据库。
+        # "metadata_json": job.get("metadata_json"),  # noqa: E800 — Qwen3-TTS(已注释)
     }
 
 
@@ -197,10 +196,12 @@ async def current_event(job: dict) -> dict:
             "output_url": job.get("output_url") or f"/api/jobs/{job['id']}/output",
             "output_ext": job.get("output_ext"),
             "timeline_url": timeline_url,
-            # TTS pipeline(2025-Q3):前端按 kind 区分 UI;
-            # metadata_json 在 kind="tts" 的 done 任务里会有 {"failed_segments": [...]}。
+            # ⚠️ kind 字段(2025-Q3 引入,Qwen3-TTS pipeline):前端按 kind 区分 UI;
+            # 当前版本(回退 Qwen3-TTS)kind 仅作读出保留,渲染层只可能拿到 "render"。
             "kind": job.get("kind", "render"),
-            "metadata_json": job.get("metadata_json"),
+            # ⚠️ TTS done 事件 metadata_json —— Qwen3-TTS(已注释)
+            # 当前版本(回退 Qwen3-TTS)此字段永远为 None,保留注释方便恢复。
+            # "metadata_json": job.get("metadata_json"),  # noqa: E800 — Qwen3-TTS(已注释)
         }
     return {
         "status": job["status"],
@@ -223,7 +224,8 @@ def _publish(job_id: str, event: dict) -> None:
 async def _process_job(job_id: str) -> None:
     """处理单个任务:任何异常都落到 failed 状态,不影响 worker 循环。
 
-    kind == "tts" 走 tts_service.synthesize()(2025-Q3 新增),其它原逻辑不变。
+    ⚠️ 原 2025-Q3 版本会按 kind == "tts" 走 tts_service.synthesize()(Qwen3-TTS pipeline);
+    当前版本(回退 Qwen3-TTS)已注释掉该分支,只保留 render pipeline。
     """
     job = await db.get_job_async(job_id)
     if job is None:
@@ -244,22 +246,26 @@ async def _process_job(job_id: str) -> None:
             _publish(job_id, {"status": "running", "progress": percent, "kind": kind})
 
         output_url = f"/api/jobs/{job_id}/output"
-        metadata_json: str | None = None
+        # ⚠️ TTS metadata_json —— Qwen3-TTS(已注释)
+        # metadata_json: str | None = None  # noqa: E800 — Qwen3-TTS(已注释)
 
-        if kind == "tts":
-            wav_path = await tts_service.synthesize(
-                job_id=job_id,
-                user_id=user_id,
-                session_id=session_id,
-                config=job["config"],
-                progress_cb=progress_cb,
-            )
-            # tts_service.synthesize 把单段失败明细写到 wav 同目录的 .meta.json;
-            # 这里读完即删(避免半成品),再透传给 finish_job 落库。
-            meta_path = wav_path.with_name(f"{wav_path.stem}.meta.json")
-            if meta_path.is_file():
-                metadata_json = meta_path.read_text(encoding="utf-8")
-                meta_path.unlink(missing_ok=True)
+        if False:  # noqa: E800 — TTS 分支(Qwen3-TTS,已禁用)
+            # 以下整段为 Qwen3-TTS 多角色对话合成(2025-Q3,Qwen3-TTS pipeline);
+            # 当前版本(回退 Qwen3-TTS)已注释,kind == "tts" 的 job 会落到 else 分支
+            # 但 VideoDSL.model_validate 会失败 → 落到 except → fail 状态(预期)。
+            # 恢复时把 `if False:` 改成 `if kind == "tts":`,并取消下面 tts_service 调用。
+            # wav_path = await tts_service.synthesize(
+            #     job_id=job_id,
+            #     user_id=user_id,
+            #     session_id=session_id,
+            #     config=job["config"],
+            #     progress_cb=progress_cb,
+            # )
+            # meta_path = wav_path.with_name(f"{wav_path.stem}.meta.json")
+            # if meta_path.is_file():
+            #     metadata_json = meta_path.read_text(encoding="utf-8")
+            #     meta_path.unlink(missing_ok=True)
+            pass
         else:
             dsl = VideoDSL.model_validate(job["config"])
             if dsl.transparent:
@@ -281,11 +287,14 @@ async def _process_job(job_id: str) -> None:
                     progress_callback=progress_cb,
                 )
 
-        await db.finish_job_async(job_id, "done", None, metadata_json=metadata_json)
+        # ⚠️ TTS pipeline(已禁用)原本会把 metadata_json 透传给 finish_job;
+        # 当前版本不再带 metadata_json。
+        await db.finish_job_async(job_id, "done", None)
         tl = timeline_path(user_id, session_id, job_id)
         timeline_url = f"/api/jobs/{job_id}/timeline" if tl.is_file() else None
         # SSE done 事件:重新读一次 job 让 metadata_json 走 db 的 json.loads 路径,
         # 避免这里再手工解析一次(也保证 _publish 出去的形态与 current_event 一致)。
+        # ⚠️ 当前版本 metadata_json 永远 None,保留注释方便恢复 Qwen3-TTS。
         done_job = await db.get_job_async(job_id)
         _publish(job_id, {
             "status": "done",
@@ -294,7 +303,7 @@ async def _process_job(job_id: str) -> None:
             "output_ext": job.get("output_ext"),
             "timeline_url": timeline_url,
             "kind": kind,
-            "metadata_json": (done_job or {}).get("metadata_json"),
+            # "metadata_json": (done_job or {}).get("metadata_json"),  # noqa: E800 — Qwen3-TTS(已注释)
         })
         logger.info("Job %s done (kind=%s)", job_id, kind)
     except Exception as exc:  # noqa: BLE001 — worker 异常不导致进程退出

@@ -10,8 +10,11 @@ import type {
   SessionDetail,
   SessionInfo,
   TimelineDocument,
-  TtsBySourceResponse,
   VideoDSL,
+  // ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+  // TtsBySourceResponse 接口仍保留在 types.ts(块注释),当前版本不再被消费;
+  // 这里一并注释 import,恢复时去掉 /* */ 即可。
+  /* TtsBySourceResponse, */
 } from './types';
 
 /**
@@ -193,7 +196,7 @@ export function subscribeJobEvents(
   };
 }
 
-// ---------- TTS 多角色对话合成(2025-Q3) ----------
+// ---------- TTS 多角色对话合成(2025-Q3) — Qwen3-TTS,已注释 ⚠️ ----------
 
 /**
  * 从已渲染视频任务派生 ASR → 入队 TTS 任务。
@@ -201,8 +204,12 @@ export function subscribeJobEvents(
  * 再入队 tts 任务,config_json 里塞 source_job_id 反查标记。
  *
  * 返回 { tts_job_id, status: 'queued' };后续状态走 /api/jobs/{tts_job_id} 或 SSE。
+ *
+ * ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+ * 当前版本(回退 Qwen3-TTS)/api/tts/from-job 端点已被 if False 注释
+ * (见 backend/app/main.py),这里保留函数体供恢复时直接去掉 /* */ 即可。
  */
-export async function submitTtsFromJob(
+/* export async function submitTtsFromJob(
   jobId: string,
 ): Promise<{ tts_job_id: string; status: string }> {
   return requestJson<{ tts_job_id: string; status: string }>(
@@ -213,7 +220,7 @@ export async function submitTtsFromJob(
       body: JSON.stringify({ job_id: jobId }),
     },
   );
-}
+} */
 
 /**
  * 时间码页持久化查询:返回该 render job 最近一个 TTS 子任务的状态。
@@ -224,12 +231,15 @@ export async function submitTtsFromJob(
  *   - 后端没找到 → 200 + body 直接是 null(不是 404);
  *
  * 前端拿到 null 就显示「生成语音」按钮,非 null 就按 status 走 done/running/failed 分支。
+ *
+ * ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+ * 当前版本(回退 Qwen3-TTS)/api/tts/by-source 端点已被 if False 注释。
  */
-export function getTtsBySourceJob(jobId: string): Promise<TtsBySourceResponse | null> {
+/* export function getTtsBySourceJob(jobId: string): Promise<TtsBySourceResponse | null> {
   return requestJson<TtsBySourceResponse | null>(
     `/api/tts/by-source/${encodeURIComponent(jobId)}`,
   );
-}
+} */
 
 // ---------- sessions ----------
 

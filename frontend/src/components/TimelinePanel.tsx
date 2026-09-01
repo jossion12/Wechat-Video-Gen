@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getTimeline,
-  getTtsBySourceJob,
-  submitTtsFromJob,
+  // ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+  // getTtsBySourceJob, submitTtsFromJob,
   subscribeJobEvents,
 } from '../api';
 import type {
+  // ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+  // JobStatus 仅用于 TtsSection 内 Extract<JobStatus, 'queued' | 'running'>;
+  // 当前版本(回退 Qwen3-TTS)TtsSection 已注释,这里保留 import 以便恢复时一行解注即可。
   JobStatus,
   RenderJobEvent,
   TimelineDocument,
@@ -232,8 +235,11 @@ export function TimelinePanel({ jobId, onBack, timelineUrl }: TimelinePanelProps
           )}
 
           {/* TTS 语音合成卡片 —— 与表格同卡内,虚线分隔。doc 存在(render 已 done)
-              时才有意义;doc 为 null(loading/error)时不渲染,避免误导用户。 */}
-          <TtsSection renderJobId={jobId} />
+              时才有意义;doc 为 null(loading/error)时不渲染,避免误导用户。
+              ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+              <TtsSection renderJobId={jobId} />
+              当前版本(回退 Qwen3-TTS)时间码页底部 TTS 卡片已注释,
+              见下方 TtsSection 组件 / handleTtsEvent 块注释。 */}
         </>
       )}
     </section>
@@ -241,13 +247,18 @@ export function TimelinePanel({ jobId, onBack, timelineUrl }: TimelinePanelProps
 }
 
 // ---------- TTS 语音合成卡片 ----------
+// ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+// 下方 TtsSection / TtsSectionProps / TtsPhase / handleTtsEvent 已重命名为
+// _DISABLED_QWEN3_TTS_ 前缀以避免被引用,代码原封保留供恢复时去掉 _DISABLED_ 前缀即可。
+// /api/tts/from-job 与 /api/tts/by-source 端点已在 backend/app/main.py 注释;
+// 前端不再渲染 TTS 卡片,这些函数仅留作「回滚后再次启用」时的代码存档。
 
-interface TtsSectionProps {
+interface _DISABLED_QWEN3_TTS_TtsSectionProps {
   /** render 任务的 jobId —— by-source 反查 + from-job 入参都用这个 */
   renderJobId: string;
 }
 
-type TtsPhase =
+type _DISABLED_QWEN3_TTS_TtsPhase =
   | { phase: 'loading' }
   | { phase: 'idle' }
   | {
@@ -279,8 +290,8 @@ type TtsPhase =
  * 状态机走 useState<TtsPhase> 联合类型,避免分散多个 useState 同步问题。
  * SSE 取消函数存 ref,组件 unmount 时调一次 abort。
  */
-function TtsSection({ renderJobId }: TtsSectionProps) {
-  const [state, setState] = useState<TtsPhase>({ phase: 'loading' });
+function _DISABLED_QWEN3_TTS_TtsSection({ renderJobId }: _DISABLED_QWEN3_TTS_TtsSectionProps) {
+  const [state, setState] = useState<_DISABLED_QWEN3_TTS_TtsPhase>({ phase: 'loading' });
   const [submitting, setSubmitting] = useState(false);
   const sseUnsubRef = useRef<(() => void) | null>(null);
 
@@ -322,7 +333,7 @@ function TtsSection({ renderJobId }: TtsSectionProps) {
         });
         sseUnsubRef.current = subscribeJobEvents(t.tts_job_id, (ev) => {
           if (disposed) return;
-          handleTtsEvent(ev, setState);
+          _DISABLED_QWEN3_TTS_handleTtsEvent(ev, setState);
         });
       })
       .catch((err: unknown) => {
@@ -379,7 +390,7 @@ function TtsSection({ renderJobId }: TtsSectionProps) {
         });
         sseUnsubRef.current?.();
         sseUnsubRef.current = subscribeJobEvents(res.tts_job_id, (ev) => {
-          handleTtsEvent(ev, setState);
+          _DISABLED_QWEN3_TTS_handleTtsEvent(ev, setState);
         });
       })
       .catch((err: unknown) => {
@@ -502,9 +513,9 @@ function TtsSection({ renderJobId }: TtsSectionProps) {
  * SSE 完成后(浏览器读到流尾 / 后端 done 时)前端不会再收到事件,
  * subscribeJobEvents 内部 done/failed 后自动 return。
  */
-function handleTtsEvent(
+function _DISABLED_QWEN3_TTS_handleTtsEvent(
   ev: RenderJobEvent,
-  setState: React.Dispatch<React.SetStateAction<TtsPhase>>,
+  setState: React.Dispatch<React.SetStateAction<_DISABLED_QWEN3_TTS_TtsPhase>>,
 ): void {
   setState((prev) => {
     if (prev.phase !== 'running') return prev;

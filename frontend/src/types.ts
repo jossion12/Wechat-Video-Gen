@@ -17,8 +17,10 @@ export type AIBadgeStyle = 'neon' | 'minimal' | 'retro';
 export type TransparentFormat = 'webm_vp9_alpha' | 'mov_prores4444';
 
 // 服务端写入 jobs.output_ext 的可能取值,前端用它决定下载按钮文案 / 文件名后缀。
-// 'wav' 是 TTS 多角色对话合成(2025-Q3)的产物扩展名,见 backend/app/tts_service.py。
-export type OutputExt = 'mp4' | 'webm' | 'mov' | 'wav';
+// 'wav' 是 TTS 多角色对话合成(2025-Q3,Qwen3-TTS)的产物扩展名,见 backend/app/tts_service.py。
+// ⚠️ 当前版本(回退 Qwen3-TTS)'wav' 已从白名单移除(backend/app/storage.py + db.py),
+//    这里也对应从联合类型里去掉;恢复时加回即可。
+export type OutputExt = 'mp4' | 'webm' | 'mov';
 
 export const INTENT_LABELS: Record<Intent, string> = {
   short_video_drama: '短视频剧情创作',
@@ -54,7 +56,10 @@ export const OUTPUT_EXT_LABELS: Record<OutputExt, string> = {
   mp4: 'MP4 (H.264)',
   webm: 'WebM (VP9+Alpha)',
   mov: 'MOV (ProRes 4444)',
-  wav: 'WAV (24kHz 单声道)',
+  // ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+  // 原 2025-Q3:WAV (24kHz 单声道) — TTS 多角色对话合成产物扩展名。
+  // 当前版本(回退 Qwen3-TTS)'wav' 已从 OutputExt 联合类型移除,这里也对应注释。
+  // wav: 'WAV (24kHz 单声道)',
 };
 
 /** 各主题首次启用时的推荐背景色。 */
@@ -138,16 +143,20 @@ export interface JobStatusResponse {
   // 仅 done 且 timeline.json 存在时有值,前端据此显示「查看时间码」按钮。
   // TTS 任务没有 timeline.json → null。
   timeline_url: string | null;
-  // 任务类型(2025-Q3 引入):'render'(视频) / 'tts'(语音合成)。
-  // 前端按 kind 路由下载/播放 UI;老 job 默认 'render'。
-  kind: 'render' | 'tts';
-  // TTS 单段失败明细(见 docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md):
-  // 仅 kind="tts" 的 done 任务里可能非空;render 任务与未跑完的任务里都是 null。
-  // 失败不阻塞整体任务,该段回退静音。
-  metadata_json: { failed_segments?: TtsFailedSegment[] } | null;
+  // ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+  // 原 2025-Q3:kind: 'render' | 'tts',TTS 多角色对话合成任务。
+  // 当前版本(回退 Qwen3-TTS)kind 字段后端永远返回 'render',
+  // 联合类型窄化为 'render',恢复时改回 'render' | 'tts'。
+  kind: 'render';
+  // ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+  // 原 2025-Q3:metadata_json: { failed_segments?: TtsFailedSegment[] } | null
+  // 当前版本(回退 Qwen3-TTS)后端永远返回 null,这里改为更宽的 null | undefined。
+  metadata_json: null;
 }
 
-/** TTS 单段失败明细项 —— 与后端 tts_service.synthesize 写入的 failed_segments 一一对应。 */
+/** ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+ * TTS 单段失败明细项 —— 与后端 tts_service.synthesize 写入的 failed_segments 一一对应。
+ * 当前版本(回退 Qwen3-TTS)后端不再写 metadata_json,这里保留定义供恢复参考。
 export interface TtsFailedSegment {
   idx: number;
   speaker_id: string;
@@ -155,6 +164,7 @@ export interface TtsFailedSegment {
   text: string;
   reason: string;
 }
+ */
 
 /** Event payload pushed through the SSE stream. */
 export interface RenderJobEvent {
@@ -166,13 +176,20 @@ export interface RenderJobEvent {
   output_ext?: OutputExt | null;
   // done 事件里也会带 timeline_url;前端无需再额外 GET 一次 job 状态就能展示按钮。
   timeline_url?: string | null;
-  // 任务类型(2025-Q3);老 job 事件流里这个字段是 undefined,前端按 'render' 兜底。
-  kind?: 'render' | 'tts';
-  // TTS done 事件里带的失败明细(其它时刻为 undefined)。
-  metadata_json?: { failed_segments?: TtsFailedSegment[] } | null;
+  // ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+  // 原 2025-Q3:kind?: 'render' | 'tts';老 job 事件流里这个字段是 undefined。
+  // 当前版本(回退 Qwen3-TTS)窄化为 'render'。
+  kind?: 'render';
+  // ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+  // 原 2025-Q3:metadata_json?: { failed_segments?: TtsFailedSegment[] } | null
+  // 当前版本(回退 Qwen3-TTS)后端不再传这个字段。
+  metadata_json?: undefined;
 }
 
-/** GET /api/tts/by-source/{job_id} 响应(2025-Q3 引入)。 */
+/** ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+ * GET /api/tts/by-source/{job_id} 响应(2025-Q3 引入)。
+ * 当前版本(回退 Qwen3-TTS)/api/tts/by-source 端点已被 if False 注释,
+ * 这里保留接口定义供恢复参考。
 export interface TtsBySourceResponse {
   tts_job_id: string;
   status: JobStatus;
@@ -181,6 +198,7 @@ export interface TtsBySourceResponse {
   error: string | null;
   metadata_json: { failed_segments?: TtsFailedSegment[] } | null;
 }
+ */
 
 // ---------- 时间码 JSON(见 docs/03-api.md §3.x 时间码导出) ----------
 
@@ -249,10 +267,14 @@ export interface JobSummary {
   finished_at: number | null;
   output_ext: OutputExt | null;
   timeline_url: string | null;
-  // 任务类型(2025-Q3):'render'(视频) / 'tts'(语音合成);老 job 默认 'render'。
-  kind?: 'render' | 'tts';
-  // TTS 单段失败明细(与 JobStatusResponse.metadata_json 同语义)。
-  metadata_json?: { failed_segments?: TtsFailedSegment[] } | null;
+  // ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+  // 原 2025-Q3:kind?: 'render' | 'tts';老 job 默认 'render'。
+  // 当前版本(回退 Qwen3-TTS)窄化为 'render'。
+  kind?: 'render';
+  // ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+  // 原 2025-Q3:TTS 单段失败明细(与 JobStatusResponse.metadata_json 同语义)。
+  // 当前版本(回退 Qwen3-TTS)后端不再写,前端不再消费。
+  metadata_json?: null;
 }
 
 export interface SessionInfo {

@@ -1,5 +1,15 @@
 # Qwen3-TTS 多角色对话音频生成方案
 
+> ⚠️ **DEPRECATED / DISABLED** ⚠️
+>
+> 当前版本（回退 Qwen3-TTS）此集成已关闭：
+> - 后端 `backend/app/tts_service.py` 模块主体已包入 `if False:`
+> - `/api/tts/*` 端点已在 `backend/app/main.py` 用 `if False:` 注释
+> - 前端 `TimelinePanel.tsx` 的 TTS 卡片渲染已注释
+> - `requirements.txt` / `Dockerfile` / `docker-compose.yml` / `.env.example` 里的 Qwen3-TTS 依赖与 GPU 配置已注释
+>
+> 本文档保留作为恢复参考;不要按本文档重新启用,而应先看代码注释决定是否回滚相关改动。
+
 > 基于本地 Qwen3-TTS 模型，将 ASR 转录文本还原为多角色真人对话音频
 
 ---

@@ -54,10 +54,13 @@ EXT_TO_MIME: dict[str, str] = {
     "jpeg": "image/jpeg",
     "webp": "image/webp",
     "gif": "image/gif",
-    # TTS 多角色对话合成(2025-Q3):ASR JSON 上传走 /api/tts/import-asr,
+    # ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+    # 原 2025-Q3 注释:TTS 多角色对话合成的 ASR JSON 上传走 /api/tts/import-asr,
     # 复用 save_upload_bytes 落盘,这里把 json 加进白名单(它不是图片素材,不会
     # 进 /api/upload,只被 TTS 端点用)。
-    "json": "application/json",
+    # 当前版本(回退 Qwen3-TTS)直接注释 — /api/tts/* 端点也已注释,
+    # save_upload_bytes 不再被 ASR 路径调用,白名单回到图片素材即可。
+    # "json": "application/json",
 }
 
 OUTPUT_EXT = "mp4"
@@ -65,8 +68,12 @@ OUTPUT_EXT = "mp4"
 # 见 backend/app/recorder.py::render_video_transparent。
 OUTPUT_EXT_WEBM_ALPHA = "webm"
 OUTPUT_EXT_MOV_PRORES = "mov"
-# TTS 多角色对话合成产物的扩展名(wav,24kHz mono)。见 backend/app/tts_service.py。
-EXT_AUDIO_WAV = "wav"
+# ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+# 原 2025-Q3 注释:TTS 多角色对话合成产物的扩展名(wav,24kHz mono)。
+# 见 backend/app/tts_service.py。
+# 当前版本(回退 Qwen3-TTS)直接注释 — WAV 不再作为合法产物扩展名,
+# main.py / queue.py 里 from app.storage import EXT_AUDIO_WAV 也已注释。
+# EXT_AUDIO_WAV = "wav"
 
 # 时间码 JSON 的扩展名(后缀固定,不随产物格式变化 —— 不透明/透明两条产物线都共用
 # 同一个 timeline.json)。见 backend/app/recorder.py 与 docs/03-api.md §3.x 时间码段。
@@ -78,7 +85,10 @@ OUTPUT_MIME: dict[str, str] = {
     OUTPUT_EXT: "video/mp4",
     OUTPUT_EXT_WEBM_ALPHA: "video/webm",
     OUTPUT_EXT_MOV_PRORES: "video/quicktime",
-    EXT_AUDIO_WAV: "audio/wav",
+    # ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️
+    # 原 2025-Q3 注释:TTS 产物 WAV 的 MIME(由 EXT_AUDIO_WAV 推导)。
+    # 当前版本(回退 Qwen3-TTS)直接注释。
+    # EXT_AUDIO_WAV: "audio/wav",
 }
 
 

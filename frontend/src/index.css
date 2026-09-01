@@ -2353,10 +2353,13 @@ textarea {
 .timeline-kind-badge--sys { background: var(--neon-pink); }
 .timeline-kind-badge--timestamp { background: #64748b; }
 
-/* ---------- TTS 语音合成卡片(见 docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md) ----------
-   嵌在 .timeline-card 内部,用虚线 border-top 与时间码表格分隔。
-   复用现有 .status-chip / .progress-track / .progress-fill / .btn,仅补少量布局/排版样式。 */
-
+/* ⚠️ Qwen3-TTS(已注释,DISABLED / DEPRECATED)⚠️ — 开起块注释
+   原 2025-Q3:TTS 语音合成卡片 CSS(嵌在 .timeline-card 内部)见 docs/Qwen3-TTS_MultiSpeaker_Dialogue_Guide.md。
+   当前版本(回退 Qwen3-TTS)整段选择器保留在块注释内,前端不再渲染 TTS 卡片。
+   CSS 不支持 /* */ 嵌套,所以原本两行 inline /* ... */ 注释已被合并到本头注释里,
+   恢复时把本块从注释解开并把下面 "inline-note-a/b" 拆回 /* ... */ 即可。
+   - inline-note-a: running 阶段进度条 + jobId 副信息
+   - inline-note-b: 失败态 reason 上方,按钮右下,与 idle 行结构对齐
 .tts-section {
   margin-top: 20px;
   padding-top: 16px;
@@ -2434,7 +2437,6 @@ textarea {
   word-break: break-all;
 }
 
-/* running 阶段进度条 + jobId 副信息 */
 .tts-section-running .progress-track {
   margin-bottom: 4px;
 }
@@ -2444,7 +2446,7 @@ textarea {
   margin-top: 4px;
 }
 
-/* 失败态:reason 上方,按钮右下,与 idle 行结构对齐 */
 .tts-section-failed .tts-section-row > span {
   flex: 1;
 }
+⚠️ Qwen3-TTS DISABLED — 关闭块注释 */
