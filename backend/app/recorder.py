@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import shutil
 import subprocess
 import tempfile
@@ -246,8 +247,9 @@ async def render_video_transparent(
                         progress_callback, tmp_dir, job_id,
                     )
                     await progress_callback(92)
-                    _encode_webm_to_webm_alpha(
+                    await _encode_webm_to_webm_alpha(
                         recorded_webm, out_path, duration_s,
+                        progress_callback,
                     )
                 else:
                     await _capture_png_sequence_for_mov(
@@ -476,14 +478,22 @@ def _encode_webm_to_mp4(webm: Path, mp4: Path, duration_s: float) -> None:
         raise RuntimeError("ffmpeg produced no output file")
 
 
-def _encode_webm_to_webm_alpha(
-    src_webm: Path, dst_webm: Path, duration_s: float
+async def _encode_webm_to_webm_alpha(
+    src_webm: Path,
+    dst_webm: Path,
+    duration_s: float,
+    progress_callback: ProgressCallback | None = None,
 ) -> None:
     """Chromium 录的 webm → VP9 with alpha webm(yuva420p)。
 
-    注意:`-b:v 0` + `-crf` 是 VP9 的恒定质量模式,`-pix_fmt yuva420p` 让容器
-    强制走带 alpha 的像素格式;若源文件不含 alpha,ffmpeg 会保持 alpha=255
-    (即不透明)而不是报错。
+    默认 libvpx-vp9 是 best quality 单线程,长视频(1080×1920 × 几分钟)可能
+    压几十分钟。这里用 `-deadline realtime -cpu-used 8 -threads 4` 让
+    libvpx-vp9 软编码也能保持可用速度(10-50x 加速),视觉质量小幅下降
+    对透明背景完全够用。
+
+    异步跑 subprocess 并解析 stderr 的 `time=` 字段,把 92%-99% 之间的
+    进度平滑推给 progress_callback,避免用户看到「卡在 92%」。节流 0.5s
+    防止 ffmpeg 高频输出时 DB / SSE 被刷爆;编码收尾强制推一次 99%。
     """
     cmd = [
         "ffmpeg",
@@ -492,14 +502,62 @@ def _encode_webm_to_webm_alpha(
         "-t", f"{duration_s:.3f}",
         "-c:v", "libvpx-vp9",
         "-pix_fmt", "yuva420p",
+        "-deadline", "realtime",
+        "-cpu-used", "8",
+        "-threads", "4",
         "-b:v", "0",
         "-crf", "30",
         "-an",
         str(dst_webm),
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    if proc.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed: {proc.stderr[-2000:]}")
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    assert proc.stderr is not None
+
+    time_re = re.compile(r"time=(\d+):(\d+):(\d+\.?\d*)")
+    # 上游 render_video_transparent 已经推过 92,这里从 92 起算避免重复
+    last_pushed = 92
+    last_pushed_at = 0.0
+    try:
+        while True:
+            raw = await proc.stderr.readline()
+            if not raw:
+                break
+            line = raw.decode("utf-8", errors="ignore")
+            m = time_re.search(line)
+            if not m or progress_callback is None or duration_s <= 0:
+                continue
+            cur = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+            pct = 92 + int(min(cur / duration_s, 1.0) * 7)
+            now = time.monotonic()
+            if pct > last_pushed and (now - last_pushed_at >= 0.5 or pct >= 99):
+                last_pushed = pct
+                last_pushed_at = now
+                await progress_callback(pct)
+
+        rc = await proc.wait()
+    finally:
+        if proc.returncode is None:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            await proc.wait()
+
+    # 编码收尾保证推到 99%(即便最后一帧 time= 没达到 duration_s)
+    if progress_callback is not None:
+        await progress_callback(99)
+
+    if rc != 0:
+        try:
+            rest = await proc.stderr.read()
+        except Exception:
+            rest = b""
+        err = rest.decode("utf-8", errors="ignore")
+        raise RuntimeError(f"ffmpeg failed (rc={rc}): {err[-2000:]}")
     if not dst_webm.exists() or dst_webm.stat().st_size == 0:
         raise RuntimeError("ffmpeg produced no output file")
 

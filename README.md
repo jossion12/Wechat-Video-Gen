@@ -9,7 +9,8 @@
 
 - **单聊（对谈）/ 群聊（群像）** 两种模式，消息可显式指定左右对齐
 - **文字 / 图片 / 视频 / 表情 / 系统消息 / 时间戳** 六种消息类型
-- **七种原创视觉风格**：赛博朋克、手绘、复古、漫画、黑白胶片、水墨；蒸汽波设计中
+- **七种原创视觉风格**：赛博朋克、水彩、像素、漫画、黑白胶片、水墨、绿幕
+- **背景与透明背景**：支持整页背景图、`background_visible` 隐藏背景/装饰层（仅保留聊天元素），以及透明背景导出（`webm_vp9_alpha` / `mov_prores4444`），方便叠加到其他视频
 - **片头特效**：无 / 扫描线展开 / 打字机标题
 - **回复引用**：消息可引用此前消息并显示引用块
 - **头像、图片、背景图直传后端**（`/api/upload`），自动校验大小与类型
@@ -106,6 +107,7 @@ npm run dev                       # http://localhost:5173，Vite 代理 /api →
 - 一次"任务"=一个 session：前端启动调 `POST /api/sessions` 拿到 `session_id`，后续上传 / 导入 / 预览 / 渲染都挂到这个 session。
 - 文件落在 `storage/users/{user_id}/sessions/{session_id}/uploads/`，产物落在 `storage/users/{user_id}/sessions/{session_id}/outputs/`，跨用户物理隔离。
 - 访问文件用 `/api/files/{file_id}`，下载产物用 `/api/jobs/{job_id}/output` — 后端按所有权校验后才返回内容，不再用全局静态挂载。
+- 用户状态自助：`GET /api/me` 查询当前用户信息；`POST /api/admin/users/{user_id}/register` / `recharge` 分别标记自己已注册 / 已付费（当前仅限操作本人，后续可扩展管理员鉴权）。
 
 ## 本地开发 / Demo 跳过鉴权
 
@@ -232,7 +234,7 @@ my-dialogue.zip
 ```
 backend/          FastAPI 应用（models / dsl / renderer / recorder / queue / storage / ai_service / tts_service / importer / auth / db）
   app/            业务模块
-  config/         TTS 音色/角色/语气配置示例(tts_voices.json.example)
+  config/         TTS 音色/角色/语气配置（tts_voices.json + .example 模板）
   templates/      原创风格 Jinja2 模板
   tests/          pytest 用例（主测试目录）
   app/tests/      importer + TTS 单元测试

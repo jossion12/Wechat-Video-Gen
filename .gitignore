@@ -12,3 +12,6 @@ dist/
 *.jpeg
 !backend/assets/*.png
 .DS_Store
+
+# 本地 AI 工具配置,不公开
+.claude/

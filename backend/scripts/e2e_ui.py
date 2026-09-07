@@ -14,6 +14,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 from playwright.sync_api import Page, sync_playwright
 
@@ -148,7 +149,7 @@ def main() -> int:
         # 8. 下载 MP4 并校验(1 条消息 → 1000+1500+1500=4000ms=4s)
         resp = page.request.get(f"{BASE}{href}")
         data = resp.body()
-        out = r"D:\project\private\new_life\code\wechat-video-gen\backend\storage\ui_e2e.mp4"
+        out = str(Path(__file__).resolve().parents[1] / "storage" / "ui_e2e.mp4")
         with open(out, "wb") as fh:
             fh.write(data)
         ok = resp.ok and len(data) > 0
